@@ -61,7 +61,21 @@ Item {
   readonly property color hairline: Qt.rgba(foreground.r, foreground.g, foreground.b, 0.16)
   readonly property string fontFamily: Style.font.family
 
-  readonly property string helperPath: String(Qt.resolvedUrl("bin/omasettings")).replace(/^file:\/\//, "")
+  // A URL is percent-encoded and a home directory may hold a space, so the
+  // path is decoded before anything shells out to it. Same answer as
+  // `Service.qml`'s `localPath`, for the same reason: this is the window's
+  // own helper, and there is nowhere in the layout for a shared one.
+  function localPath(url) {
+    var value = String(url || "")
+    if (value.indexOf("file://") === 0) value = value.substring(7)
+    try {
+      return decodeURIComponent(value)
+    } catch (e) {
+      return value
+    }
+  }
+
+  readonly property string helperPath: localPath(Qt.resolvedUrl("bin/omasettings"))
 
   // ---------------- state --------------------------------------------------
   property var state: ({})
