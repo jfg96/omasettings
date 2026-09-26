@@ -773,6 +773,12 @@ Item {
   // finishes is what these say, not whatever was asked for last.
   property var activeArgs: []
   property bool mutationRunning: false
+  // A full read is owed by something in this burst and is waiting for the queue
+  // to go quiet. Owed rather than scheduled: a timer started when the first
+  // write finished counted on, and landed in the middle of the next one —
+  // reading the state while a write was still in flight is the mid-write read
+  // the queue is here to prevent.
+  property bool settleOwed: false
 
   function run(args) {
     var waiting = mutationQueue.slice()
@@ -785,6 +791,10 @@ Item {
 
   function startMutation() {
     if (mutationRunning || mutationQueue.length === 0) return
+    // A settle read already counting down belongs to a burst that has not
+    // ended. Stopping it keeps the debt rather than the read, so the new write
+    // postpones the full refresh rather than competing with it.
+    if (settleTimer.running) { settleTimer.stop(); settleOwed = true }
     activeArgs = mutationQueue[0]
     mutationQueue = mutationQueue.slice(1)
     mutationRunning = true
@@ -808,12 +818,21 @@ Item {
     // catches anything the slices above did not name. A command whose slice
     // is the whole story skips it: the full read costs seconds under load,
     // and landing after a second click it put the older value back on
-    // screen until its own settle read corrected it. The timer is restarted
-    // per command, so a burst of them settles once, at the end.
-    if (!root.slicesSuffice(done)) settleTimer.restart()
+    // screen until its own settle read corrected it.
+    if (!root.slicesSuffice(done)) settleOwed = true
     // Whatever queued up behind this one goes now, whether or not this one
     // worked: a failure is one setting's problem and the queue is not it.
     root.startMutation()
+    root.settleWhenIdle()
+  }
+
+  // The burst settles once, at the end, which is the only moment a full read is
+  // safe to ask for: nothing is being written, so the document it reads is the
+  // document the writes produced.
+  function settleWhenIdle() {
+    if (!settleOwed || mutationRunning || mutationQueue.length > 0) return
+    settleOwed = false
+    settleTimer.restart()
   }
 
   // ---------------- what a change is worth re-reading ----------------------
