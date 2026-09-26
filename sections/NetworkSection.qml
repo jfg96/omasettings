@@ -53,7 +53,7 @@ Ui.SectionBody {
 
   Ui.SettingGroup {
     title: "Connection"
-    visible: !searchEmpty && !searchHidden && app.wifi.connected !== ""
+    visible: !searchEmpty && app.wifi.connected !== ""
 
     Ui.ReadingRow {
       label: "IP address"

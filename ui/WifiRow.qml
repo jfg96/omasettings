@@ -26,21 +26,9 @@ Column {
 
   // Connecting is the one thing worth a key here; a network that wants a
   // passphrase opens the prompt instead, and the prompt takes the keyboard.
-  Local.NavCursor {
-    id: nav
-    anchors.fill: parent
-    searchText: wifiRow.ssid
-    navBlocking: wifiRow.prompting
-    navKeys: wifiRow.active ? [{ key: "Space", label: "Disconnect" }]
-      : (wifiRow.needsPassword ? [{ key: "Space", label: "Passphrase" }]
-                               : [{ key: "Space", label: "Connect" }])
-    onNavActivate: {
-      if (wifiRow.active) wifiRow.disconnectRequested()
-      else if (wifiRow.needsPassword) wifiRow.promptToggled()
-      else wifiRow.connectRequested("")
-    }
-  }
-
+  // It goes in the row below rather than here: a Column places its children
+  // itself, and an anchored child of one is an error Qt reports while the row
+  // quietly loses its own geometry.
   visible: !nav.searchHidden
   width: parent ? parent.width : 0
   spacing: Style.space(6)
@@ -48,6 +36,21 @@ Column {
   Item {
     width: parent.width
     implicitHeight: Style.spacing.controlHeight
+
+    Local.NavCursor {
+      id: nav
+      anchors.fill: parent
+      searchText: wifiRow.ssid
+      navBlocking: wifiRow.prompting
+      navKeys: wifiRow.active ? [{ key: "Space", label: "Disconnect" }]
+        : (wifiRow.needsPassword ? [{ key: "Space", label: "Passphrase" }]
+                                 : [{ key: "Space", label: "Connect" }])
+      onNavActivate: {
+        if (wifiRow.active) wifiRow.disconnectRequested()
+        else if (wifiRow.needsPassword) wifiRow.promptToggled()
+        else wifiRow.connectRequested("")
+      }
+    }
 
     Rectangle {
       anchors.fill: parent
