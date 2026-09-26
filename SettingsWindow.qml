@@ -66,7 +66,12 @@ Item {
   // ---------------- state --------------------------------------------------
   property var state: ({})
   property bool loaded: false
-  property bool busy: false
+  // Whether a write of ours is in flight. It is the queue's, not one process's:
+  // a change waiting its turn is work this window has accepted and not yet
+  // done, and calling itself ready while it sits there is the same lie as
+  // dropping it.
+  readonly property bool busy: mutationRunning || mutationQueue.length > 0
+    || wifiConnecting
   property string lastError: ""
 
   readonly property var hypr: state.hypr !== undefined ? state.hypr : ({})
@@ -229,6 +234,11 @@ Item {
   }
   // The network whose password field is open, if any.
   property string wifiPrompting: ""
+  // A connection with a passphrase is not queued behind the mutations that
+  // write files: the secret goes over stdin, so it cannot be a command line
+  // this window assembles and hands to the queue. It talks to
+  // NetworkManager, which none of them do.
+  property bool wifiConnecting: false
 
   function connectWifi(ssid, password) {
     wifiPrompting = ""
@@ -236,7 +246,7 @@ Item {
       // The passphrase goes over stdin, never argv: anything on the command
       // line is readable by every process on the machine for as long as the
       // connection takes.
-      root.busy = true
+      root.wifiConnecting = true
       wifiConnectProc.secret = password
       wifiConnectProc.command = ["bash", root.helperPath, "wifi", "connect", ssid, "--password-stdin"]
       wifiConnectProc.running = true
@@ -259,7 +269,7 @@ Item {
       onStreamFinished: root.lastError = text.trim()
     }
     onRunningChanged: if (!running) {
-      root.busy = false
+      root.wifiConnecting = false
       settleTimer.restart()
     }
   }
@@ -736,11 +746,60 @@ Item {
 
   // Every mutation is the same shape: hand the helper a command, then re-read
   // the world once it settles rather than guessing what changed.
+  //
+  // One at a time, and the rest wait their turn. A single shared Process meant
+  // a second press overwrote the first: its command, the arguments it was
+  // remembered by, and the fact that it ran at all — so two quick clicks on
+  // two settings left one of them unsent, and the window then re-read as if
+  // only the second had happened. That reads as a window that ignored you
+  // rather than one that was busy, and a change is worth a second anyway (a
+  // theme switch, a plugin update), so the writes queue instead.
+  property var mutationQueue: []
+  // The arguments of the command actually running, kept as its identity: what
+  // finishes is what these say, not whatever was asked for last.
+  property var activeArgs: []
+  property bool mutationRunning: false
+
   function run(args) {
-    root.busy = true
-    root.lastArgs = args
-    applyProc.command = ["bash", root.helperPath].concat(args)
+    var waiting = mutationQueue.slice()
+    waiting.push(args)
+    // A fresh array rather than a push: nothing would hear about a mutation
+    // added to the same one.
+    mutationQueue = waiting
+    if (!mutationRunning) startMutation()
+  }
+
+  function startMutation() {
+    if (mutationRunning || mutationQueue.length === 0) return
+    activeArgs = mutationQueue[0]
+    mutationQueue = mutationQueue.slice(1)
+    mutationRunning = true
+    applyProc.command = ["bash", root.helperPath].concat(activeArgs)
     applyProc.running = true
+  }
+
+  // What a change is worth re-reading is declared by the command itself, so
+  // the queue has to hand each finished one its own arguments rather than
+  // reading a variable the next start has already overwritten.
+  function finishMutation() {
+    var done = root.activeArgs
+    activeArgs = []
+    mutationRunning = false
+    // What the change was about, answered now; everything else a beat later.
+    // The wait used to come first, so a click that had already landed sat
+    // there for 400ms before the window even asked what it did.
+    root.refreshSlices(root.slicesFor(done))
+    // Theme and font switches ripple through other processes; re-reading a
+    // beat later picks up settled values rather than mid-switch ones — and
+    // catches anything the slices above did not name. A command whose slice
+    // is the whole story skips it: the full read costs seconds under load,
+    // and landing after a second click it put the older value back on
+    // screen until its own settle read corrected it. The timer is restarted
+    // per command, so a burst of them settles once, at the end.
+    if (!root.slicesSuffice(done)) settleTimer.restart()
+    // Whatever queued up behind this one goes now, whether or not this one
+    // worked: a failure is one setting's problem and the queue is not it.
+    root.startMutation()
   }
 
   // ---------------- what a change is worth re-reading ----------------------
@@ -757,7 +816,6 @@ Item {
   // slices leaves the window a moment late, never wrong. Anything not named
   // here — reset, a menu flow, whatever is added next — waits for that read
   // and is simply as fast as it was before.
-  property var lastArgs: []
 
   function slicesFor(args) {
     if (!args || args.length === 0) return []
@@ -874,22 +932,10 @@ Item {
     id: applyProc
     stderr: StdioCollector {
       waitForEnd: true
+      // Whatever the command complained about, from the command that ran it.
       onStreamFinished: root.lastError = text.trim()
     }
-    onRunningChanged: if (!running) {
-      root.busy = false
-      // What the change was about, answered now; everything else a beat
-      // later. The wait used to come first, so a click that had already
-      // landed sat there for 400ms before the window even asked what it did.
-      root.refreshSlices(root.slicesFor(root.lastArgs))
-      // Theme and font switches ripple through other processes; re-reading a
-      // beat later picks up settled values rather than mid-switch ones — and
-      // catches anything the slices above did not name. A command whose slice
-      // is the whole story skips it: the full read costs seconds under load,
-      // and landing after a second click it put the older value back on
-      // screen until its own settle read corrected it.
-      if (!root.slicesSuffice(root.lastArgs)) settleTimer.restart()
-    }
+    onRunningChanged: if (!running) root.finishMutation()
   }
 
   Timer {
