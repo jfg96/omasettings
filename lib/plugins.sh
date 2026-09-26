@@ -55,8 +55,10 @@ plugins_state() {
 # payload; -1 means the plugin is not a git checkout and -2 that the fetch
 # failed (no network, private remote, gone).
 plugin_updates() {
+  # A missing directory is a sweep of nothing, not a reason to skip the sweep:
+  # returning early left the last verdicts standing over a list that no longer
+  # had those plugins in it, which is the one thing this cache must not show.
   local dir="$HOME_DIR/.config/omarchy/plugins"
-  [[ -d $dir ]] || return 0
 
   # The comparison is omarchy-plugin-update's own, on purpose: it fetches
   # origin HEAD — the remote's default branch, not the local branch's
@@ -100,14 +102,25 @@ plugin_updates() {
 
   # What an update said about itself outlives a sweep: the sweep is about the
   # counts, and rebuilding the whole document would throw away the answer the
-  # page is still showing.
+  # page is still showing. Not every answer, though. A failure is a statement
+  # about a moment — cannot fast-forward, no network — and the moment passes:
+  # the plugin is fixed or unreachable, the fetch succeeds, and the count says
+  # there is nothing to update, so a failure that outlived that would keep
+  # promising a banner for a plugin that has since caught up. Successes stay,
+  # since "updated" is still what happened, and a plugin with commits waiting
+  # keeps its failure because the update that failed is still the one waiting.
+  # Both are also scoped to the plugins this sweep saw, so an id that has been
+  # removed takes its verdict with it.
   jq -Rn --argjson at "$(date +%s)" --argjson prev "$(plugin_updates_cache)" '
     [inputs | split("\t") | select(length >= 2)] as $rows
-    | { checkedAt: $at,
-        results: ([$rows[] | { key: .[0], value: (.[1] | tonumber) }] | from_entries),
-        changes: ([$rows[] | select((.[2] // "") != "") | { key: .[0], value: .[2] }] | from_entries),
-        running: ($prev.running // {}),
-        last: ($prev.last // {}) }' \
+    | ([$rows[] | .[0]] as $ids
+      | ([$rows[] | { key: .[0], value: (.[1] | tonumber) }] | from_entries) as $results
+      | { checkedAt: $at,
+          results: $results,
+          changes: ([$rows[] | select((.[2] // "") != "") | { key: .[0], value: .[2] }] | from_entries),
+          running: ($prev.running // {} | with_entries(select(.key as $k | $ids | index($k)))),
+          last: ($prev.last // {} | with_entries(select(.key as $k | $ids | index($k)))
+                | with_entries(select(.value.ok == true or ($results[.key] // 0) != 0))) })' \
     <"$out" 2>/dev/null | write_update_cache
   rm -f "$out"
 }
