@@ -686,11 +686,17 @@ first.
   /usr/lib/qt6/bin/qmllint -I /tmp/qsimports SettingsWindow.qml sections/*.qml
   ```
 
-  Two warnings are expected and are not yours to fix: `Property "state"
-  already exists in base type` (the window has carried it from the start) and
+  Three warnings are expected and are not yours to fix: `Property "state"
+  already exists in base type` (the window has carried it from the start),
   `Type PanelWindow is not creatable`, which Omarchy's own bar and menu raise
-  on the same type. Unqualified-access and missing-property notes on `Style`
-  and `Color` are singletons qmllint cannot follow.
+  on the same type, and `Type QProcess::ExitStatus of parameter exitStatus in
+  signal called exited was not found` in `Service.qml`. That last one is
+  qmllint not resolving an enum that lives in `QtQuick.Processes`: the file
+  gets `Process` from `Quickshell.Io`, and importing the other one to make
+  the type visible is the one change that would break the file, since both
+  export `Process`. The handler runs — `Service.qml` reports a failed
+  install in the journal. Unqualified-access and missing-property notes on
+  `Style` and `Color` are singletons qmllint cannot follow.
 
   Even so, the authoritative check is the shell loading the file.
 
