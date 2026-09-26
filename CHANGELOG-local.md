@@ -25,6 +25,7 @@ API, the state document and the search index are the ones upstream ships.
 | `2fee53a` | `plugin-updates.json` kept a failed update verdict forever, so a `cannot fast-forward` banner outlived the fix that caused it, and outlived the plugin itself. Verdicts are now scoped to installed plugins, and a failure is dropped once the count says nothing is waiting. Upstream PR #13 shipped with a guard that returned early when the plugins directory was missing — the one case where the stale cache must not be left alone; that guard is gone and a missing directory writes the empty current cache. Upstream PR #13. |
 | `275c5fb` | The launcher entry was written from `manifest.__sourceDir`, a field Omarchy strips from a third-party plugin's manifest, so `omasettings.desktop` was never written and nothing said so. The path comes from `Qt.resolvedUrl(".")` instead, and an install that fails now says why once in the journal. Port of upstream PR #9. |
 | `e2e26d7` | Documentation only: records the third qmllint warning this fork's launcher handler raises, and why importing `QtQuick.Processes` to silence it would break the file. |
+| `d25ea54` | `helperPath` stripped `file://` off a `Qt.resolvedUrl` result but left the percent-encoding, so with a space anywhere in `$HOME` every helper the window shells out to — audio watch, power watch, bluetooth and wifi polls, wifi connect, plugin updates — was run at a path that does not exist, silently. Decoded, the same way the launcher path is. |
 
 ## How it was checked
 
@@ -54,6 +55,11 @@ API, the state document and the search index are the ones upstream ships.
   missing template reported once as
   `omasettings: no launcher entry: no template at …`.
 - Window opens in 58–66 ms warm, so the scoped-refresh work is intact.
+- The path decoding was run on the Qt 6 QML runtime with the URLs a home
+  directory holding a space really produces: the old expression yields
+  `/home/javi/My%20Stuff/...`, the new one yields `/home/javi/My Stuff/...`,
+  an unencoded path is unchanged, a literal `%` in a name survives, and a
+  malformed escape falls back to the raw value instead of throwing.
 
 ## Not in this build
 
