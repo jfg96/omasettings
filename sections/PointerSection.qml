@@ -92,6 +92,31 @@ Ui.SectionBody {
     }
   }
 
+  // A mouse is not a touchpad, and Hyprland keeps their scrolling in different
+  // places: `input:natural_scroll` and `input:scroll_factor` for a mouse,
+  // under `input.touchpad` for a touchpad. The group above is the touchpad's,
+  // so a mouse gets its own rather than being given settings nothing reads.
+
+  Ui.SettingGroup {
+    title: "Mouse"
+
+    Ui.SwitchRow {
+      label: "Natural scrolling"
+      checked: app.hyprValue("mouse-natural-scroll", false) === true
+      onRequested: function(next) { app.setHypr("mouse-natural-scroll", next ? "true" : "false") }
+      changed: app.isChanged("mouse-natural-scroll")
+      onResetRequested: app.resetSetting("mouse-natural-scroll")
+    }
+
+    Ui.FactorRow {
+      label: "Scroll speed"
+      value: Number(app.hyprValue("mouse-scroll-factor", 1))
+      onCommitted: function(next) { app.setHypr("mouse-scroll-factor", next) }
+      changed: app.isChanged("mouse-scroll-factor")
+      onResetRequested: app.resetSetting("mouse-scroll-factor")
+    }
+  }
+
   // Every pointer that can depart from the settings above gets its own group,
   // so what a control writes is never in doubt: the ones under a device name
   // write that device, the ones above write every device.
@@ -137,6 +162,12 @@ Ui.SectionBody {
       readonly property var settings: modelData.settings || ({})
       readonly property var configured: modelData.configured || ({})
       readonly property bool ours: Object.keys(settings).length > 0
+      // A pointer's name is what says whether it is a touchpad, and Hyprland
+      // keeps the two kinds' scrolling apart: `input.natural_scroll` and
+      // `input.scroll_factor` for a mouse, the same two under `input.touchpad`
+      // for a touchpad. So a device with nothing of its own follows the pair
+      // for its own kind rather than the touchpad's by default.
+      readonly property bool touchpad: modelData.touchpad === true
 
       // Not called `value`: inside a row, that name resolves to the row's own
       // value property rather than to this.
@@ -181,7 +212,9 @@ Ui.SectionBody {
 
       Ui.SwitchRow {
         label: "Natural scrolling"
-        checked: inForce("natural_scroll", app.hyprValue("natural-scroll", false)) === true
+        checked: inForce("natural_scroll", touchpad
+          ? app.hyprValue("natural-scroll", false)
+          : app.hyprValue("mouse-natural-scroll", false)) === true
         onRequested: function(next) { app.setDevice(name, "natural_scroll", next ? "true" : "false", "pointer") }
         changed: app.isChanged("device:" + name + ":natural_scroll")
         onResetRequested: app.resetSetting("device:" + name + ":natural_scroll")
@@ -199,7 +232,9 @@ Ui.SectionBody {
         label: "Scroll speed"
         minimum: 0.1
         maximum: 3
-        value: Number(inForce("scroll_factor", app.hyprValue("scroll-factor", 1)))
+        value: Number(inForce("scroll_factor", touchpad
+          ? app.hyprValue("scroll-factor", 1)
+          : app.hyprValue("mouse-scroll-factor", 1)))
         onCommitted: function(next) { app.setDevice(name, "scroll_factor", next, "pointer") }
         changed: app.isChanged("device:" + name + ":scroll_factor")
         onResetRequested: app.resetSetting("device:" + name + ":scroll_factor")
