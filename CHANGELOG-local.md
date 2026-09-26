@@ -1,8 +1,10 @@
-# Changelog — local fork
+# Changelog — build local
 
-Deviations from upstream `io.github.twiking.omasettings` as of this build.
+Fixes on top of upstream `io.github.twiking.omasettings` in this personal
+build. Not a maintained fork, not a release line: it is upstream 1.3.0 with
+the problems below fixed, for this machine.
 
-Base: upstream `v1.3.0` (`72cfe16`). Tagged `v1.3.0-jfg1`.
+Base: upstream `v1.3.0` (`72cfe16`). Tagged `v1.3.0-local`.
 
 Everything here is a fix or a port of a fix. No feature work, no upstream
 PR merged wholesale: each one was read, ported by hand against the current
@@ -25,6 +27,7 @@ API, the state document and the search index are the ones upstream ships.
 | `2fee53a` | `plugin-updates.json` kept a failed update verdict forever, so a `cannot fast-forward` banner outlived the fix that caused it, and outlived the plugin itself. Verdicts are now scoped to installed plugins, and a failure is dropped once the count says nothing is waiting. Upstream PR #13 shipped with a guard that returned early when the plugins directory was missing — the one case where the stale cache must not be left alone; that guard is gone and a missing directory writes the empty current cache. Upstream PR #13. |
 | `275c5fb` | The launcher entry was written from `manifest.__sourceDir`, a field Omarchy strips from a third-party plugin's manifest, so `omasettings.desktop` was never written and nothing said so. The path comes from `Qt.resolvedUrl(".")` instead, and an install that fails now says why once in the journal. Port of upstream PR #9. |
 | `e2e26d7` | Documentation only: records the third qmllint warning this fork's launcher handler raises, and why importing `QtQuick.Processes` to silence it would break the file. |
+| `5e2f11c` | The full read that follows a burst of writes was armed on a timer when the first write finished, and the next write started immediately — so a write slower than 400 ms was still running when the timer expired, and the full read landed in the middle of it. One burst, two full reads, one of them against a half-applied change. The debt is now recorded when a write needs it and the timer is armed only once the queue is empty, so a burst always ends in exactly one full read, after the last write. |
 | `d25ea54` | `helperPath` stripped `file://` off a `Qt.resolvedUrl` result but left the percent-encoding, so with a space anywhere in `$HOME` every helper the window shells out to — audio watch, power watch, bluetooth and wifi polls, wifi connect, plugin updates — was run at a path that does not exist, silently. Decoded, the same way the launcher path is. |
 
 ## How it was checked
@@ -55,6 +58,14 @@ API, the state document and the search index are the ones upstream ships.
   missing template reported once as
   `omasettings: no launcher entry: no template at …`.
 - Window opens in 58–66 ms warm, so the scoped-refresh work is intact.
+- The mutation queue was run through six scenarios with a stand-in process
+  of known duration, using the functions as they stand in the file: six
+  quick writes, a fast write followed by one slower than the settle window,
+  the same the other way round, a write arriving inside the window, a
+  command its scoped read covers, and a mix of both. 25 checks, all
+  passing. The same six against the previous code fail four — the burst
+  containing the slow write reads the state twice, once while a write is in
+  flight.
 - The path decoding was run on the Qt 6 QML runtime with the URLs a home
   directory holding a space really produces: the old expression yields
   `/home/javi/My%20Stuff/...`, the new one yields `/home/javi/My Stuff/...`,
@@ -72,4 +83,4 @@ Reviewed and left out on purpose, per the plan this fork was built to:
   multi-display setup.
 - upstream PR #14 (card cap on very large displays) — no such display here.
 - upstream PR #15 (bar reorder by typing the order) — a feature with a
-  large surface, for later once this fork has proven itself.
+  large surface, for later if this build is picked up again.
