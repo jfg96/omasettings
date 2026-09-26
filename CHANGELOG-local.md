@@ -1,0 +1,69 @@
+# Changelog — local fork
+
+Deviations from upstream `io.github.twiking.omasettings` as of this build.
+
+Base: upstream `v1.3.0` (`72cfe16`). Tagged `v1.3.0-jfg1`.
+
+Everything here is a fix or a port of a fix. No feature work, no upstream
+PR merged wholesale: each one was read, ported by hand against the current
+code, and tested on its own. `lib/state.sh`, `lib/core.sh`, `bin/omasettings`
+and `manifest.json` (bar/entry-point metadata) are untouched, so the shell
+API, the state document and the search index are the ones upstream ships.
+
+## Fixes
+
+| Commit | What was wrong |
+| --- | --- |
+| `84c26b7` | Settings mutations were fired as they arrived, so two quick writes could reach the shell out of order and the second could read the first's half-applied state. They are serialized through one queue now. |
+| `5fac37d` | A switch derived its next action from confirmed state, so pressing it twice quickly asked for the value it had just asked for. It keeps the pending value as its own, and a switch nobody touched stays settled. |
+| `a5b200f` | A per-device row's Changed mark and its Reset wrote the global Hyprland keyword instead of `device:<name>:<option>`, so resetting a mouse row moved every mouse. Upstream issue #7. |
+| `e40bfb1` | Natural scrolling and scroll factor were offered once, for a touchpad, and written to whichever device the pointer was. A mouse has `input:natural_scroll` and `input:scroll_factor` of its own; they are now a separate group, with the kind of the device deciding which row writes where. |
+| `0b5bfe1` | The same per-device mistake in five keyboard rows. |
+| `732b281` | `WifiRow`'s `NavCursor` was a direct child of a `Column`, anchored `fill` — one `Column` anchor warning per visible network, and a wrong cursor. The invalid `searchHidden` on the Network page's `SettingGroup` was a second `ReferenceError` on the same page. Upstream issue #16. |
+| `ae84e8b` | A value containing `"`, `\` or a newline was escaped once for the shell and then written into Lua still escaped, so a keybinding with a quote in it produced a file Hyprland would not load. Values are stored raw and quoted once, at the point of writing; `awk -v` (which re-interprets backslashes) was replaced by `ENVIRON` on every path that carries a value into a renderer. Includes a one-time `bindingsSchema` migration for stores written by the old escaping. Port of upstream PR #10. |
+| `49c72ce` | No `Text` in the plugin set `textFormat`, so all 47 of them were on QtQuick's `AutoText` and switched to rich text for any string that parses as markup — an SSID or Bluetooth name could make the shell fetch a URL, and any foreign label could borrow the window's formatting. All 47 are `Text.PlainText`. Port of upstream PR #11. |
+| `2fee53a` | `plugin-updates.json` kept a failed update verdict forever, so a `cannot fast-forward` banner outlived the fix that caused it, and outlived the plugin itself. Verdicts are now scoped to installed plugins, and a failure is dropped once the count says nothing is waiting. Upstream PR #13 shipped with a guard that returned early when the plugins directory was missing — the one case where the stale cache must not be left alone; that guard is gone and a missing directory writes the empty current cache. Upstream PR #13. |
+| `275c5fb` | The launcher entry was written from `manifest.__sourceDir`, a field Omarchy strips from a third-party plugin's manifest, so `omasettings.desktop` was never written and nothing said so. The path comes from `Qt.resolvedUrl(".")` instead, and an install that fails now says why once in the journal. Port of upstream PR #9. |
+| `e2e26d7` | Documentation only: records the third qmllint warning this fork's launcher handler raises, and why importing `QtQuick.Processes` to silence it would break the file. |
+
+## How it was checked
+
+- `omarchy plugin validate .` on every commit.
+- Qt 6 `qmllint` over the window, service, panel, all pages and all `ui/`
+  components: 0 errors, and the warning set is byte-identical to the
+  baseline on `v1.3.0` (the one Network-section warning is gone, the one
+  launcher warning is new and explained above).
+- `bash -n` over every `lib/*.sh` and `bin/omasettings`.
+- All 23 pages opened one after another on a restarted shell with an empty
+  journal apart from the launcher failure test that was asked for.
+- The escaping work ran against a sandbox with every path redirected:
+  28 cases, including quotes, `grep \d`, a literal `\n`, a trailing
+  backslash, a real newline, multibyte input, a quoted device name, Herdr's
+  TOML, Neovim's Lua, a `.conf` left byte-identical, an old store migrated
+  once, and `state` never writing. Then a real binding with a quote in it,
+  added and removed, leaving `bindings.lua` byte-identical.
+- The update cache ran against real local git repositories: 22 cases
+  covering the pruning rules, the missing and empty plugins directory,
+  `changes` still carrying commit subjects, a second sweep changing
+  nothing, and a corrupt or absent cache being replaced rather than
+  trusted. Ten of those cases fail against `v1.3.0`.
+- Per-device set and reset against the real store and the real managed Lua,
+  with `luac -p` and `hyprChanged` checked at each end.
+- The launcher cycle: written on restart, gone on `omarchy plugin disable`,
+  back on `enable`, `desktop-file-validate` clean, and a deliberately
+  missing template reported once as
+  `omasettings: no launcher entry: no template at …`.
+- Window opens in 58–66 ms warm, so the scoped-refresh work is intact.
+
+## Not in this build
+
+Reviewed and left out on purpose, per the plan this fork was built to:
+
+- upstream PR #8 (bar-widget-hosted fallback) — only useful with a
+  third-party bar container, and it trades against Omarchy's plugin
+  permission model.
+- upstream PR #5 (display rotation and alignment) — a feature, for a
+  multi-display setup.
+- upstream PR #14 (card cap on very large displays) — no such display here.
+- upstream PR #15 (bar reorder by typing the order) — a feature with a
+  large surface, for later once this fork has proven itself.
