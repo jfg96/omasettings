@@ -138,24 +138,24 @@ Ui.SectionBody {
         placeholder: String(app.hyprValue("kb-layout", ""))
         value: String(inForce("kb_layout", app.hyprValue("kb-layout", "")))
         onCommitted: function(next) { app.setDevice(name, "kb_layout", next, "keyboard") }
-        changed: app.isChanged("kb-layout")
-        onResetRequested: app.resetSetting("kb-layout")
+        changed: app.isChanged("device:" + name + ":kb_layout")
+        onResetRequested: app.resetSetting("device:" + name + ":kb_layout")
       }
 
       Ui.TextRow {
         label: "Variant"
         value: String(inForce("kb_variant", app.hyprValue("kb-variant", "")))
         onCommitted: function(next) { app.setDevice(name, "kb_variant", next, "keyboard") }
-        changed: app.isChanged("kb-variant")
-        onResetRequested: app.resetSetting("kb-variant")
+        changed: app.isChanged("device:" + name + ":kb_variant")
+        onResetRequested: app.resetSetting("device:" + name + ":kb_variant")
       }
 
       Ui.TextRow {
         label: "Options"
         value: String(inForce("kb_options", app.hyprValue("kb-options", "")))
         onCommitted: function(next) { app.setDevice(name, "kb_options", next, "keyboard") }
-        changed: app.isChanged("kb-options")
-        onResetRequested: app.resetSetting("kb-options")
+        changed: app.isChanged("device:" + name + ":kb_options")
+        onResetRequested: app.resetSetting("device:" + name + ":kb_options")
       }
 
       Ui.NumberRow {
@@ -165,8 +165,8 @@ Ui.SectionBody {
         to: 100
         value: Number(inForce("repeat_rate", app.hyprValue("repeat-rate", 25)))
         onCommitted: function(next) { app.setDevice(name, "repeat_rate", next, "keyboard") }
-        changed: app.isChanged("repeat-rate")
-        onResetRequested: app.resetSetting("repeat-rate")
+        changed: app.isChanged("device:" + name + ":repeat_rate")
+        onResetRequested: app.resetSetting("device:" + name + ":repeat_rate")
       }
 
       Ui.NumberRow {
@@ -177,8 +177,8 @@ Ui.SectionBody {
         step: 50
         value: Number(inForce("repeat_delay", app.hyprValue("repeat-delay", 600)))
         onCommitted: function(next) { app.setDevice(name, "repeat_delay", next, "keyboard") }
-        changed: app.isChanged("repeat-delay")
-        onResetRequested: app.resetSetting("repeat-delay")
+        changed: app.isChanged("device:" + name + ":repeat_delay")
+        onResetRequested: app.resetSetting("device:" + name + ":repeat_delay")
       }
 
       // No label: what the button removes is the group it sits in, and how
