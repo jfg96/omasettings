@@ -158,8 +158,12 @@ Ui.SectionBody {
         label: "Sensitivity"
         value: (Number(inForce("sensitivity", app.hyprValue("sensitivity", 0))) + 1) / 2
         onCommitted: function(next) { app.setDevice(name, "sensitivity", (next * 2 - 1).toFixed(2), "pointer") }
-        changed: app.isChanged("sensitivity")
-        onResetRequested: app.resetSetting("sensitivity")
+        // Read and reset by the key this row writes, which is the device's own
+        // and not the global one above: the global key is a different setting,
+        // and resetting it would put every pointer back at once while this row
+        // says it is about one of them.
+        changed: app.isChanged("device:" + name + ":sensitivity")
+        onResetRequested: app.resetSetting("device:" + name + ":sensitivity")
       }
 
       Ui.PickerRow {
@@ -171,16 +175,16 @@ Ui.SectionBody {
           { value: "adaptive", label: "Adaptive" }
         ]
         onPicked: function(next) { app.setDevice(name, "accel_profile", next, "pointer") }
-        changed: app.isChanged("accel-profile")
-        onResetRequested: app.resetSetting("accel-profile")
+        changed: app.isChanged("device:" + name + ":accel_profile")
+        onResetRequested: app.resetSetting("device:" + name + ":accel_profile")
       }
 
       Ui.SwitchRow {
         label: "Natural scrolling"
         checked: inForce("natural_scroll", app.hyprValue("natural-scroll", false)) === true
         onRequested: function(next) { app.setDevice(name, "natural_scroll", next ? "true" : "false", "pointer") }
-        changed: app.isChanged("natural-scroll")
-        onResetRequested: app.resetSetting("natural-scroll")
+        changed: app.isChanged("device:" + name + ":natural_scroll")
+        onResetRequested: app.resetSetting("device:" + name + ":natural_scroll")
       }
 
       Ui.SwitchRow {
@@ -197,8 +201,8 @@ Ui.SectionBody {
         maximum: 3
         value: Number(inForce("scroll_factor", app.hyprValue("scroll-factor", 1)))
         onCommitted: function(next) { app.setDevice(name, "scroll_factor", next, "pointer") }
-        changed: app.isChanged("scroll-factor")
-        onResetRequested: app.resetSetting("scroll-factor")
+        changed: app.isChanged("device:" + name + ":scroll_factor")
+        onResetRequested: app.resetSetting("device:" + name + ":scroll_factor")
       }
 
       // No label: what the button removes is the group it sits in, and how
