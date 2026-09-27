@@ -121,7 +121,9 @@ hypr_read() {
     # Hyprland answers booleans with a bool field; older builds only had int,
     # and reading int alone made every switch on this page read "off" no
     # matter what the compositor was actually doing.
-    bool) jq -c 'if has("bool") then (.bool == true) else ((.int // 0) != 0) end' <<<"$raw" ;;
+    bool) jq -c 'if (.bool | type) == "boolean" then .bool
+      elif (.int | type) == "number" then (.int != 0)
+      else error("missing boolean option value") end' <<<"$raw" ;;
     # Hyprland spells "no value set" as [[EMPTY]]; the window wants "".
     str) jq -c '((.str // "") | if . == "[[EMPTY]]" then "" else . end)' <<<"$raw" ;;
   esac
@@ -330,18 +332,23 @@ ensure_loaded() {
 # is handed to the Lua parser as the same nested table the generated file
 # would hold, and the keyword form is kept for setups still on .conf.
 hypr_apply_live() {
-  local keyword=$1 value=$2 type=$3
+  local keyword=$1 value=$2 type=$3 output status
 
   if [[ -f $HYPR_DIR/hyprland.lua ]]; then
     local lua_value=$value
     [[ $type == str ]] && lua_value=$(jq -Rn --arg v "$value" '$v')
-    hyprctl eval "hl.config($(hypr_lua_table "$keyword" "$lua_value"))" >/dev/null 2>&1
-    return
+    output=$(hyprctl eval "hl.config($(hypr_lua_table "$keyword" "$lua_value"))" 2>&1)
+    status=$?
+  else
+    local applied=$value
+    [[ $type == bool ]] && { [[ $value == true ]] && applied=1 || applied=0; }
+    output=$(hyprctl keyword "$keyword" "$applied" 2>&1)
+    status=$?
   fi
-
-  local applied=$value
-  [[ $type == bool ]] && { [[ $value == true ]] && applied=1 || applied=0; }
-  hyprctl keyword "$keyword" "$applied" >/dev/null 2>&1
+  if (( status != 0 )); then
+    printf 'Hyprland rejected %s=%s (exit %s): %s\n' "$keyword" "$value" "$status" "${output:-no diagnostic returned}" >&2
+    return "$status"
+  fi
 }
 
 # "input:touchpad:natural_scroll" + true -> { input = { touchpad = { natural_scroll = true } } }
@@ -425,17 +432,26 @@ hypr_set() {
     original=${original:-null}
   fi
 
+  # Validate live acceptance before either storing an override or dropping one.
+  hypr_apply_live "$keyword" "$value" "$type" || die "failed to apply $key"
+  local actual
+  actual=$(hypr_read "$key") || die "could not verify $key after applying it"
+  # hypr_read rounds floats to three decimal places, matching the state reader.
+  jq -en --argjson actual "$actual" --argjson wanted "$json" '
+    if ($actual | type) == "number" and ($wanted | type) == "number"
+    then (($actual - $wanted) | fabs) < 0.001
+    else $actual == $wanted end' >/dev/null \
+    || die "Hyprland did not accept $key=$value (read back $actual)"
+
   if [[ $json == "$original" ]]; then
     edit_store 'if .hypr then .hypr |= del(.[$key]) else . end
       | if .hyprOriginal then .hyprOriginal |= del(.[$key]) else . end' --arg key "$key"
     # Hyprland has no way to unset a keyword, so the value comes back the same
     # way a reset brings it back: the generated file no longer sets it, and
     # the reload is what makes that take effect.
-    hyprctl reload >/dev/null 2>&1 || true
+    # The original value has already been applied and verified above.
     return
   fi
-
-  hypr_apply_live "$keyword" "$value" "$type"
 
   edit_store '.hypr = ((.hypr // {}) | .[$key] = $value)
     | .hyprOriginal = ((.hyprOriginal // {}) | (if has($key) then . else .[$key] = $original end))' \
