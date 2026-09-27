@@ -742,95 +742,90 @@ Item {
     return value === undefined || value === null ? fallback : value
   }
 
-  // A refresh asked for while one is already out used to be dropped. The read
-  // in flight had left before the write it would have shown, so the second of
-  // two quick presses moved the file and nothing on screen — which reads as a
-  // window that ignored you, not one that was busy. One is owed instead, and
-  // runs when this one lands. Owed, not queued: any number of presses during
-  // a read are answered by a single re-read, since the state is whatever it
-  // is by the time it is asked.
+  // A single scheduler owns reads and writes. A read already in progress
+  // finishes before newly queued writes; its watermark cannot acknowledge them.
   property bool refreshOwed: false
+  property bool readRunning: false
+  property var mutationQueue: []
+  property var activeMutation: null
+  property bool mutationRunning: false
+  property int nextMutationId: 1
+  property var completedMutations: []
+  property var reconciliationSlices: []
+  property bool reconciliationFull: false
+  property int reconciliationGeneration: 0
+  property int reconciledMutationId: 0
+  property var readingMutations: []
+  property var readingSlices: []
+  property bool settleOwed: false
+  signal mutationFinished(var result)
+  signal mutationReconciled(var result)
+  signal reconciliationFailed(int throughId)
 
   function refresh() {
-    if (stateProc.running) { refreshOwed = true; return }
-    refreshOwed = false
-    stateProc.command = ["bash", root.helperPath, "state"]
-    stateProc.running = true
+    refreshOwed = true
+    pump()
   }
 
-  // Every mutation is the same shape: hand the helper a command, then re-read
-  // the world once it settles rather than guessing what changed.
-  //
-  // One at a time, and the rest wait their turn. A single shared Process meant
-  // a second press overwrote the first: its command, the arguments it was
-  // remembered by, and the fact that it ran at all — so two quick clicks on
-  // two settings left one of them unsent, and the window then re-read as if
-  // only the second had happened. That reads as a window that ignored you
-  // rather than one that was busy, and a change is worth a second anyway (a
-  // theme switch, a plugin update), so the writes queue instead.
-  property var mutationQueue: []
-  // The arguments of the command actually running, kept as its identity: what
-  // finishes is what these say, not whatever was asked for last.
-  property var activeArgs: []
-  property bool mutationRunning: false
-  // A full read is owed by something in this burst and is waiting for the queue
-  // to go quiet. Owed rather than scheduled: a timer started when the first
-  // write finished counted on, and landed in the middle of the next one —
-  // reading the state while a write was still in flight is the mid-write read
-  // the queue is here to prevent.
-  property bool settleOwed: false
-
   function run(args) {
-    var waiting = mutationQueue.slice()
-    waiting.push(args)
-    // A fresh array rather than a push: nothing would hear about a mutation
-    // added to the same one.
-    mutationQueue = waiting
-    if (!mutationRunning) startMutation()
+    var mutation = { id: nextMutationId++, args: args.slice(),
+      slices: slicesFor(args), requiresFullSettle: !slicesSuffice(args) }
+    mutationQueue = mutationQueue.concat([mutation])
+    if (settleTimer.running) { settleTimer.stop(); settleOwed = true }
+    // Also gathers input arriving in the same event turn into one burst.
+    Qt.callLater(pump)
+    return mutation.id
+  }
+
+  function oweSlices(names) {
+    var next = reconciliationSlices.slice()
+    for (var i = 0; i < names.length; i++)
+      if (next.indexOf(names[i]) === -1) next.push(names[i])
+    reconciliationSlices = next
+  }
+
+  function pump() {
+    if (mutationRunning || readRunning) return
+    if (mutationQueue.length > 0) { startMutation(); return }
+    if (completedMutations.length > 0 || reconciliationSlices.length > 0) {
+      startRead(reconciliationFull)
+      return
+    }
+    if (refreshOwed) { startRead(true); return }
+    settleWhenIdle()
   }
 
   function startMutation() {
-    if (mutationRunning || mutationQueue.length === 0) return
-    // A settle read already counting down belongs to a burst that has not
-    // ended. Stopping it keeps the debt rather than the read, so the new write
-    // postpones the full refresh rather than competing with it.
-    if (settleTimer.running) { settleTimer.stop(); settleOwed = true }
-    activeArgs = mutationQueue[0]
+    if (mutationRunning || readRunning || mutationQueue.length === 0) return
+    activeMutation = mutationQueue[0]
     mutationQueue = mutationQueue.slice(1)
     mutationRunning = true
-    applyProc.command = ["bash", root.helperPath].concat(activeArgs)
+    applyProc.errorText = ""
+    applyProc.command = ["bash", root.helperPath].concat(activeMutation.args)
     applyProc.running = true
   }
 
-  // What a change is worth re-reading is declared by the command itself, so
-  // the queue has to hand each finished one its own arguments rather than
-  // reading a variable the next start has already overwritten.
-  function finishMutation() {
-    var done = root.activeArgs
-    activeArgs = []
+  function finishMutation(exitCode, exitStatus) {
+    var done = activeMutation
+    done.exitCode = exitCode
+    done.exitStatus = exitStatus
+    done.success = exitCode === 0 && exitStatus === 0
+    done.error = done.success ? "" : (applyProc.errorText.trim()
+      || "Command " + done.args.join(" ") + " failed (exit " + exitCode + ", status " + exitStatus + ")")
+    if (!done.success) lastError = done.error
+    completedMutations = completedMutations.concat([done])
+    oweSlices(done.slices)
+    if (done.slices.length === 0) reconciliationFull = true
+    if (done.requiresFullSettle) settleOwed = true
+    activeMutation = null
     mutationRunning = false
-    // What the change was about, answered now; everything else a beat later.
-    // The wait used to come first, so a click that had already landed sat
-    // there for 400ms before the window even asked what it did.
-    root.refreshSlices(root.slicesFor(done))
-    // Theme and font switches ripple through other processes; re-reading a
-    // beat later picks up settled values rather than mid-switch ones — and
-    // catches anything the slices above did not name. A command whose slice
-    // is the whole story skips it: the full read costs seconds under load,
-    // and landing after a second click it put the older value back on
-    // screen until its own settle read corrected it.
-    if (!root.slicesSuffice(done)) settleOwed = true
-    // Whatever queued up behind this one goes now, whether or not this one
-    // worked: a failure is one setting's problem and the queue is not it.
-    root.startMutation()
-    root.settleWhenIdle()
+    mutationFinished(done)
+    Qt.callLater(pump)
   }
 
-  // The burst settles once, at the end, which is the only moment a full read is
-  // safe to ask for: nothing is being written, so the document it reads is the
-  // document the writes produced.
   function settleWhenIdle() {
-    if (!settleOwed || mutationRunning || mutationQueue.length > 0) return
+    if (!settleOwed || mutationRunning || readRunning || mutationQueue.length > 0
+        || completedMutations.length > 0) return
     settleOwed = false
     settleTimer.restart()
   }
@@ -900,75 +895,110 @@ Item {
   }
 
   function refreshSlices(names) {
-    if (!names || names.length === 0) return
-    if (sliceProc.running) { sliceOwed = names; return }
-    sliceOwed = []
-    sliceProc.command = ["bash", root.helperPath, "state"].concat(names)
-    sliceProc.running = true
+    oweSlices(names || [])
+    pump()
   }
 
-  property var sliceOwed: []
+  function startRead(full) {
+    if (mutationRunning || readRunning || mutationQueue.length > 0) return
+    readRunning = true
+    readingMutations = completedMutations
+    completedMutations = []
+    readingSlices = reconciliationSlices
+    reconciliationSlices = []
+    reconciliationFull = false
+    if (full) {
+      refreshOwed = false
+      settleOwed = false
+      settleTimer.stop()
+    }
+    var proc = full ? stateProc : sliceProc
+    proc.outputText = ""
+    proc.errorText = ""
+    proc.command = ["bash", root.helperPath, "state"].concat(full ? [] : readingSlices)
+    proc.running = true
+  }
 
-  Process {
-    id: sliceProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      // The keys that came back replace the ones on the window; everything
-      // else stays as it was. A fresh object, because assigning the same one
-      // back tells no binding anything.
-      onStreamFinished: {
-        try {
-          var part = JSON.parse(text)
-          if (!part || typeof part !== "object") return
-          var next = {}
-          for (var k in root.state) next[k] = root.state[k]
-          for (var j in part) next[j] = part[j]
-          root.state = next
-          root.loaded = true
-        } catch (e) {
-          // The whole document is already on its way; it will say the same.
-        }
+  function finishRead(full, exitCode, exitStatus, output, error) {
+    var throughId = readingMutations.length > 0
+      ? readingMutations[readingMutations.length - 1].id : 0
+    var reconciliationError = ""
+    try {
+      if (exitCode !== 0 || exitStatus !== 0)
+        throw new Error(error.trim() || "state reader exited " + exitCode + " (status " + exitStatus + ")")
+      var part = JSON.parse(output)
+      if (!part || typeof part !== "object" || Array.isArray(part))
+        throw new Error("invalid state document")
+      for (var i = 0; i < readingSlices.length; i++)
+        if (part[readingSlices[i]] === undefined)
+          throw new Error("missing state slice " + readingSlices[i])
+      var next = {}
+      if (!full) for (var k in state) next[k] = state[k]
+      for (var j in part) next[j] = part[j]
+      state = next
+      loaded = true
+      // Live overlays must not hide this authoritative readback.
+      if (part.audio !== undefined) audioLive = null
+      if (part.power !== undefined) powerLive = null
+      if (part.wifi !== undefined) wifiLive = null
+      if (part.bluetooth !== undefined) bluetoothLive = null
+      if (throughId > 0) {
+        reconciledMutationId = throughId
+        reconciliationGeneration++
+      }
+    } catch (e) {
+      reconciliationError = "Could not reconcile settings: " + e.message
+      lastError = reconciliationError
+      // Do not label a failed read authoritative. Release only its own rows
+      // back to their last known values, and try a delayed full refresh.
+      if (throughId > 0) {
+        reconciliationFailed(throughId)
+        settleOwed = true
       }
     }
-    onRunningChanged: if (!running && root.sliceOwed.length > 0) {
-      var owed = root.sliceOwed
-      root.sliceOwed = []
-      root.refreshSlices(owed)
+    for (var m = 0; m < readingMutations.length; m++) {
+      var result = readingMutations[m]
+      result.reconciled = reconciliationError === ""
+      result.reconciliationError = reconciliationError
+      result.generation = result.reconciled ? reconciliationGeneration : -1
+      mutationReconciled(result)
     }
+    readingMutations = []
+    readingSlices = []
+    readRunning = false
+    Qt.callLater(pump)
   }
 
   function set(key, value) { run(["set", key, String(value)]) }
   function setHypr(key, value) { set(key, value) }
 
   Process {
-    id: stateProc
-    stdout: StdioCollector {
-      waitForEnd: true
-      onStreamFinished: {
-        try {
-          var next = JSON.parse(text)
-          if (next && typeof next === "object") {
-            root.state = next
-            root.loaded = true
-            root.wifiLive = null
-            root.bluetoothLive = null
-          }
-        } catch (e) {
-          // A partial read leaves the last good state on screen.
-        }
-      }
+    id: sliceProc
+    property string outputText: ""
+    property string errorText: ""
+    stdout: StdioCollector { onStreamFinished: sliceProc.outputText = text }
+    stderr: StdioCollector { onStreamFinished: sliceProc.errorText = text }
+    onExited: function(exitCode, exitStatus) {
+      root.finishRead(false, exitCode, exitStatus, outputText, errorText)
     }
-    onRunningChanged: if (!running && root.refreshOwed) root.refresh()
+  }
+
+  Process {
+    id: stateProc
+    property string outputText: ""
+    property string errorText: ""
+    stdout: StdioCollector { onStreamFinished: stateProc.outputText = text }
+    stderr: StdioCollector { onStreamFinished: stateProc.errorText = text }
+    onExited: function(exitCode, exitStatus) {
+      root.finishRead(true, exitCode, exitStatus, outputText, errorText)
+    }
   }
 
   Process {
     id: applyProc
-    stderr: StdioCollector {
-      waitForEnd: true
-      // Whatever the command complained about, from the command that ran it.
-      onStreamFinished: root.lastError = text.trim()
-    }
-    onRunningChanged: if (!running) root.finishMutation()
+    property string errorText: ""
+    stderr: StdioCollector { onStreamFinished: applyProc.errorText = text }
+    onExited: function(exitCode, exitStatus) { root.finishMutation(exitCode, exitStatus) }
   }
 
   Timer {
