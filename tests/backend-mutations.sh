@@ -14,6 +14,7 @@ write_file() { cat > "$1"; }
 render_managed() { cat "$STORE" > "$MANAGED_LUA"; }
 die() { echo "$*" >&2; exit 1; }
 capture() { "$@"; }
+accepted_json='{"bool":true}'
 hyprctl() {
   if [[ $1 == -j ]]; then
     cat "$sandbox/live.json"
@@ -23,7 +24,7 @@ hyprctl() {
   elif [[ $mode == silent-fail ]]; then
     return 8
   elif [[ $mode == success ]]; then
-    echo "${accepted_json:-{\"bool\":true}}" > "$sandbox/live.json"
+    echo "$accepted_json" > "$sandbox/live.json"
   fi
 }
 for parser in legacy lua; do

@@ -12,6 +12,50 @@ code, and tested on its own. `lib/state.sh`, `lib/core.sh`, `bin/omasettings`
 and `manifest.json` (bar/entry-point metadata) are untouched, so the shell
 API, the state document and the search index are the ones upstream ships.
 
+## Mutation / reconciliation hardening — 2026-09-27
+
+- Hyprland live writes preserve diagnostics and fail before changing the store
+  or generated configuration. Readback verifies acceptance, including boolean
+  no-ops and float clamping. Returning to an original value follows the same
+  validation path; unavailable boolean options cannot masquerade as `false`.
+- Each queued mutation carries its ID, arguments, affected slices, exit code,
+  exit status, error and reconciliation outcome. `Process.exited` determines
+  success; stderr is cleared before every command. Empty stderr gets a useful
+  fallback, and identical failures remain distinct mutation results.
+- One scheduler excludes full/scoped reads from writes in both directions.
+  A burst drains its writes before one unioned scoped read. Unknown scopes use
+  a full reconciliation. The optional full settle remains once per burst,
+  and `slicesSuffice()` still avoids it where valid. State producers remain
+  parallel inside the shell reader.
+- Switch, number, factor, percentage, minutes and bar spacer controls reconcile
+  by generation and mutation ID, even when their authoritative value has not
+  changed. An older read cannot acknowledge a request queued during that read.
+  Native toggle busy state and keyboard/slider guards allow one outstanding
+  operation per row while other rows remain usable.
+- A failed or malformed reconciliation does not advance the generation. It
+  releases only the affected rows to their last known state, reports the read
+  failure, and requests a delayed full refresh. Live overlays are invalidated
+  for slices returned by the authoritative reader.
+
+Regression checks (isolated helpers; no real desktop settings changed):
+
+- `bash tests/backend-mutations.sh`: 12 cases for Lua and legacy live failures,
+  failures without diagnostics, success, no-op, failed return to the original
+  value, float clamp and missing boolean readback. Failed writes leave the store
+  and generated config unchanged.
+- `node tests/mutation-protocol.cjs`: production scheduler functions exercise
+  ordered bursts, unioned scopes, read/write exclusion, requests during reads,
+  mutation watermarks, repeated identical failures, fresh stderr, invalid JSON,
+  explicit failed-read outcomes, and full reconciliation for unknown scopes.
+- `python3 tests/qml-mutations.py`: real Quickshell processes and production QML
+  rows exercise immediate optimistic values, per-row repeat guards, success,
+  unchanged-value no-op, exit codes/stderr, slider rejection/clamping, and a
+  request arriving during a read. Uses installed native Omarchy controls in
+  offscreen mode; platform/window deprecation warnings are expected there.
+- `qmllint -I /usr/share/omarchy/shell -I /usr/lib/qt6/qml` over all QML:
+  no diagnostics. `bash -n`, `git diff --check`, and `omarchy plugin validate .`
+  pass. Physical mouse interaction with the installed window is not automated.
+
 ## Fixes
 
 | Commit | What was wrong |
