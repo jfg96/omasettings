@@ -142,12 +142,12 @@ Ui.SectionBody {
           // answer arrives.
           readonly property int size: page.sizeAt(section, index)
           property int pending: -1
-          readonly property int effective: pending >= 0 ? pending : size
-          onSizeChanged: if (size === pending) pending = -1
+          readonly property int effective: mutationPending ? pending : size
 
           function setSize(next) {
             var wanted = Math.max(0, Math.min(400, next))
             if (wanted === effective) return
+            if (!beginMutation()) return
             pending = wanted
             page.app.run(["bar", "spacer", "size", section, String(index), String(wanted)])
           }
@@ -319,6 +319,7 @@ Ui.SectionBody {
               step: 2
               minimum: 0
               maximum: 400
+              enabled: !widgetRow.mutationPending
               value: widgetRow.effective
               onReleased: function(next) { widgetRow.setSize(next) }
             }

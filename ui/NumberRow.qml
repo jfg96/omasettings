@@ -13,32 +13,18 @@ SettingRow {
   property string suffix: ""
   signal committed(int next)
 
-  // Keys step from where the last key left off, and so does the slider: a
-  // write takes a refresh to come back, so what was asked for is what the row
-  // shows until it does. Reading `value` in that window reads the number from
-  // before the write, which springs the handle back for a moment.
+  // Keep the desired value until this mutation is explicitly reconciled.
   property int pending: value
-  property bool stepping: false
-  // What the state held when the write went out: an answer that is neither
-  // that nor what was asked for is the system disagreeing, and the row stops
-  // guessing rather than showing something that was refused.
-  property int basis: value
-  readonly property int effective: stepping ? pending : value
+  readonly property int effective: mutationPending ? pending : value
   readonly property int shown: numberSlider.dragging ? Math.round(numberSlider.liveValue) : effective
-
-  onValueChanged: {
-    if (!stepping) return
-    if (value === pending || value !== basis) stepping = false
-  }
 
   navKeys: [{ key: "\u2190\u2192", label: "Adjust" }]
 
   function commit(next) {
     var wanted = Math.max(numberRow.from, Math.min(numberRow.to, Math.round(next)))
     if (wanted === numberRow.effective) return
+    if (!beginMutation()) return
     numberRow.pending = wanted
-    numberRow.basis = numberRow.value
-    numberRow.stepping = true
     numberRow.committed(wanted)
   }
 
@@ -59,7 +45,7 @@ SettingRow {
       minimum: numberRow.from
       maximum: numberRow.to
       value: numberRow.effective
-      enabled: numberRow.enabled
+      enabled: numberRow.enabled && !numberRow.mutationPending
       onReleased: function(v) { numberRow.commit(v) }
     }
 

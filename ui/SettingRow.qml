@@ -42,6 +42,33 @@ Item {
   // doing without every page having to pass it down.
   property var nav: null
 
+  property bool mutationPending: false
+  property int requestedGeneration: -1
+  property int requestedMutationId: -1
+
+  function beginMutation() {
+    if (!enabled || mutationPending || !nav) return false
+    requestedGeneration = nav.reconciliationGeneration
+    // The requested/committed handler synchronously enqueues this operation.
+    requestedMutationId = nav.nextMutationId
+    mutationPending = true
+    return true
+  }
+
+  Connections {
+    target: settingRow.nav
+    function onReconciliationGenerationChanged() {
+      if (settingRow.mutationPending
+          && settingRow.nav.reconciliationGeneration > settingRow.requestedGeneration
+          && settingRow.nav.reconciledMutationId >= settingRow.requestedMutationId)
+        settingRow.mutationPending = false
+    }
+    function onReconciliationFailed(throughId) {
+      if (settingRow.mutationPending && throughId >= settingRow.requestedMutationId)
+        settingRow.mutationPending = false
+    }
+  }
+
   // A row the search does not match leaves the page rather than dimming: the
   // page then reads as the settings that matched, and nothing else.
   // The heading a row sits under counts as part of it: searching "blur" finds
