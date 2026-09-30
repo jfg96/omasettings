@@ -12,6 +12,57 @@ code, and tested on its own. `lib/state.sh`, `lib/core.sh`, `bin/omasettings`
 and `manifest.json` (bar/entry-point metadata) are untouched, so the shell
 API, the state document and the search index are the ones upstream ships.
 
+## Shared failure handling for toggles — 2026-09-30
+
+- All queued writes and state reconciliation reads use `bin/omasettings-run`,
+  with deadlines of 30 and 15 seconds respectively. Output is bounded to
+  4 MiB per channel; inherited descriptors cannot delay a completed helper.
+  Timeouts stop the helper's foreground process group before releasing the
+  scheduler. Cancellation follows the same cleanup path.
+- Rows and compact toggles use `ui/MutationState.qml` for pending state,
+  repeated-input guards and release on their own reconciliation result.
+  Bluetooth and Plugins no longer bypass this lifecycle.
+- Toggles register their requested boolean for common readback verification.
+  A zero exit with a different authoritative value reports rejection. Process
+  success, reconciliation and value acceptance are separate result fields.
+  Destroyed controls discard callbacks and are not reported as verified.
+- `tests/runner.py` covers inherited descriptors, the original hanging inner
+  pipeline, output limits, process-group cleanup and cancellation.
+  Scheduler and real offscreen QML tests cover silent no-ops, compact toggles,
+  write/read timeouts, row release and subsequent queue progress. Backend and
+  nightlight regressions and QML lint also pass.
+- The common layer does not promise rollback of partially applied writes;
+  domain backends own that validation and restoration. Graphical validation
+  against the active desktop remains restricted by the tool sandbox.
+- Installed all nine runtime files in dependency order with a backup. The
+  existing shell process automatically reloaded the plugin; installed QML lint
+  and runner syntax checks pass, and installed files match the repository.
+
+## Nightlight mutation blocking the queue — 2026-09-30
+
+- Diagnosed in the running shell without restarting it: the pending
+  `set nightlight true` helper waited for `head -c 4194304`, while the newly
+  launched `hyprsunset` retained the write end of that pipe and the helper's
+  stderr. The window stayed on "Applying…" and a Blur toggle queued behind it.
+  Nightlight appeared on optimistically while live temperature was 6500 K.
+- Nightlight now requests `nightlight enable` or `disable` from the existing
+  shell service. That service starts the daemon with detached stdio and applies
+  an absolute temperature. This also removes the second toggle-time state read
+  that can choose the opposite direction during daemon startup.
+- IPC acknowledges before the temperature is applied, so the setter polls live
+  readback before reporting success or tracking the write. Unavailable startup
+  temperatures are retried; rejected IPC, persistent missing temperature and
+  unchanged state report failure without changing the store.
+- `python3 tests/nightlight-mutations.py` exercises the real CLI output pipeline
+  with isolated commands and configs: asynchronous on/off, repeated requests,
+  missing temperature during startup, tracking round trip and failures. The
+  previous setter fails this regression by retaining its output pipe. Existing
+  backend and scheduler regression checks also pass. Installed into the user
+  plugin after authorization; the shell log confirms its automatic reload in
+  the existing process, and the same isolated regression passes against the
+  installed CLI. Graphical validation remains pending because tool access to
+  the desktop sockets became restricted after the live diagnosis.
+
 ## Mutation / reconciliation hardening — 2026-09-27
 
 - Hyprland live writes preserve diagnostics and fail before changing the store

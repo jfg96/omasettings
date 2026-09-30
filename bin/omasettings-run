@@ -1,0 +1,113 @@
+#!/usr/bin/env python3
+"""Run a finite helper without letting its descendants retain shell IO pipes."""
+import argparse
+import os
+import selectors
+import signal
+import subprocess
+import sys
+import time
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--timeout", type=float, required=True)
+    parser.add_argument("--max-bytes", type=int, default=4194304)
+    parser.add_argument("command", nargs=argparse.REMAINDER)
+    args = parser.parse_args()
+    command = args.command[1:] if args.command[:1] == ["--"] else args.command
+    if not command or args.timeout <= 0 or args.max_bytes <= 0:
+        parser.error("a command and positive limits are required")
+
+    interrupted = 0
+
+    def interrupt(signum, _frame):
+        nonlocal interrupted
+        interrupted = signum
+
+    for signum in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(signum, interrupt)
+
+    try:
+        process = subprocess.Popen(command, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, start_new_session=True)
+    except OSError as exception:
+        print(f"Could not start settings helper: {exception}", file=sys.stderr)
+        return 127
+
+    # These private pipes are drained without blocking. A descendant retaining
+    # a descriptor cannot hold up a completed helper; EOF is not our exit gate.
+    # Each channel is bounded in memory, without growing temporary log files.
+    buffers = [bytearray(), bytearray()]
+    with selectors.DefaultSelector() as selector:
+        for index, stream in enumerate((process.stdout, process.stderr)):
+            os.set_blocking(stream.fileno(), False)
+            selector.register(stream, selectors.EVENT_READ, index)
+        deadline = time.monotonic() + args.timeout
+        failure = ""
+        code = 0
+
+        def collect(timeout):
+            nonlocal failure, code
+            events = selector.select(timeout)
+            for key, _ in events:
+                try:
+                    chunk = os.read(key.fd, 65536)
+                except BlockingIOError:
+                    continue
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    continue
+                buffer = buffers[key.data]
+                remaining = args.max_bytes - len(buffer)
+                buffer.extend(chunk[:remaining])
+                if len(chunk) > remaining:
+                    code = 125
+                    failure = "Settings helper exceeded its output limit"
+                    break
+            return bool(events)
+
+        while process.poll() is None:
+            if interrupted:
+                code = 128 + interrupted
+                failure = "Settings operation interrupted"
+            elif time.monotonic() >= deadline:
+                code = 124
+                failure = f"Settings operation timed out after {args.timeout:g}s"
+            if failure:
+                break
+            collect(0.02)
+
+        if not failure:
+            # Drain bytes already available after exit, never wait for a child
+            # to close inherited descriptors or to produce any more output.
+            while collect(0):
+                if failure:
+                    break
+
+        if failure:
+            # Stop the helper and its foreground children before releasing the
+            # queue. Properly detached services are outside this process group.
+            for signum in (signal.SIGTERM, signal.SIGKILL):
+                try:
+                    os.killpg(process.pid, signum)
+                except ProcessLookupError:
+                    pass
+                if signum == signal.SIGTERM:
+                    time.sleep(0.2)
+            process.wait()
+        else:
+            code = process.returncode
+            if code < 0:
+                code = 128 - code
+        process.stdout.close()
+        process.stderr.close()
+        sys.stdout.buffer.write(buffers[0])
+        sys.stderr.buffer.write(buffers[1])
+        if failure:
+            print(f"\n{failure}", file=sys.stderr)
+        return code
+
+
+if __name__ == "__main__":
+    sys.exit(main())

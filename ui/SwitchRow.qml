@@ -12,8 +12,9 @@ SettingRow {
   readonly property bool effective: mutationPending ? desired : checked
 
   function flip() {
-    if (!beginMutation()) return
-    desired = !checked
+    var next = !checked
+    if (!beginMutation(next, function() { return switchRow.checked })) return
+    desired = next
     requested(desired)
   }
 

@@ -125,6 +125,40 @@ set_key() {
   set_key_apply "$key" "$value"
 }
 
+# The shell owns an absolute nightlight setter and starts hyprsunset with its
+# stdio detached. The CLI toggle can start the daemon inheriting our output
+# pipe, leaving bin/omasettings's head waiting forever after the write ends.
+# It also decides the direction from a second read, which can change during
+# daemon startup. Ask for the desired state once, then verify live acceptance:
+# the IPC acknowledgement precedes the shell's asynchronous apply process.
+nightlight_set() {
+  local value=$1 action acknowledgement status
+  case $value in
+    true) action=enable; acknowledgement=enabled ;;
+    false) action=disable; acknowledgement=disabled ;;
+    *) die "'$value' is not true or false" ;;
+  esac
+
+  status=$(capture_err omarchy-shell nightlight "$action") \
+    || die "could not set nightlight: ${status:-shell IPC failed}"
+  [[ $status == "$acknowledgement" ]] \
+    || die "could not set nightlight: ${status:-no shell acknowledgement}"
+
+  local attempt
+  for attempt in {1..25}; do
+    status=$(capture omarchy-toggle-nightlight --status) \
+      || die "could not read back nightlight"
+    jq -e '(.enabled | type) == "boolean" and
+      ((.temperature | type) == "number" or .temperature == null)' \
+      <<<"$status" >/dev/null 2>&1 || die "invalid nightlight readback"
+    jq -e --argjson wanted "$value" \
+      '(.temperature | type) == "number" and .enabled == $wanted' \
+      <<<"$status" >/dev/null && return 0
+    sleep 0.1
+  done
+  die "nightlight did not accept '$value' (read back $status)"
+}
+
 set_key_apply() {
   local key=${1:-} value=${2:-}
   case $key in
@@ -138,10 +172,7 @@ set_key_apply() {
     theme) [[ -n $value ]] || die "no theme given"; omarchy-theme-set "$value" ;;
     font) [[ -n $value ]] || die "no font given"; omarchy font set "$value" ;;
     text-scale) [[ -n $value ]] || die "no text size given"; omarchy display text size "$value" ;;
-    nightlight)
-      # The toggle script has no absolute set, so only flip when the requested
-      # state differs from the live one — repeated clicks stay idempotent.
-      [[ $(nightlight_enabled) == "$value" ]] || omarchy-toggle-nightlight ;;
+    nightlight) nightlight_set "$value" ;;
     bar-position)
       case $value in
         top|bottom|left|right) omarchy bar position "$value" ;;
