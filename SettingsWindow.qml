@@ -758,9 +758,52 @@ Item {
   property var readingMutations: []
   property var readingSlices: []
   property bool settleOwed: false
+  property int mutationTimeoutMs: 30000
+  property int readTimeoutMs: 15000
+  property var mutationExpectations: ({})
   signal mutationFinished(var result)
   signal mutationReconciled(var result)
   signal reconciliationFailed(int throughId)
+
+  // Finite operations share one execution boundary. Streaming audio/power
+  // watchers and password-over-stdin flows retain their own lifecycle.
+  function helperCommand(args, timeoutMs) {
+    var runner = helperPath.substring(0, helperPath.lastIndexOf("/") + 1) + "omasettings-run"
+    return ["python3", runner, "--timeout", String(timeoutMs / 1000), "--",
+            "bash", helperPath].concat(args)
+  }
+
+  function expectMutation(id, expected, readback, label) {
+    var next = Object.assign({}, mutationExpectations)
+    next[id] = { expected: expected, readback: readback, label: label }
+    mutationExpectations = next
+  }
+
+  function forgetMutationExpectation(id) {
+    var next = Object.assign({}, mutationExpectations)
+    delete next[id]
+    mutationExpectations = next
+  }
+
+  function verifyMutation(result) {
+    result.accepted = null
+    result.verificationError = ""
+    var expectation = mutationExpectations[result.id]
+    if (expectation && result.reconciled) {
+      try {
+        result.expectedValue = expectation.expected
+        result.actualValue = expectation.readback()
+        result.accepted = result.success && result.actualValue === result.expectedValue
+        if (result.success && !result.accepted)
+          result.verificationError = expectation.label + " did not accept the requested value"
+      } catch (e) {
+        result.accepted = false
+        result.verificationError = "Could not verify " + expectation.label + ": " + e.message
+      }
+      if (result.verificationError !== "") lastError = result.verificationError
+    }
+    forgetMutationExpectation(result.id)
+  }
 
   function refresh() {
     refreshOwed = true
@@ -801,7 +844,7 @@ Item {
     mutationQueue = mutationQueue.slice(1)
     mutationRunning = true
     applyProc.errorText = ""
-    applyProc.command = ["bash", root.helperPath].concat(activeMutation.args)
+    applyProc.command = helperCommand(activeMutation.args, mutationTimeoutMs)
     applyProc.running = true
   }
 
@@ -809,6 +852,7 @@ Item {
     var done = activeMutation
     done.exitCode = exitCode
     done.exitStatus = exitStatus
+    done.timedOut = exitCode === 124 && exitStatus === 0
     done.success = exitCode === 0 && exitStatus === 0
     done.error = done.success ? "" : (applyProc.errorText.trim()
       || "Command " + done.args.join(" ") + " failed (exit " + exitCode + ", status " + exitStatus + ")")
@@ -915,7 +959,7 @@ Item {
     var proc = full ? stateProc : sliceProc
     proc.outputText = ""
     proc.errorText = ""
-    proc.command = ["bash", root.helperPath, "state"].concat(full ? [] : readingSlices)
+    proc.command = helperCommand(["state"].concat(full ? [] : readingSlices), readTimeoutMs)
     proc.running = true
   }
 
@@ -961,6 +1005,7 @@ Item {
       result.reconciled = reconciliationError === ""
       result.reconciliationError = reconciliationError
       result.generation = result.reconciled ? reconciliationGeneration : -1
+      verifyMutation(result)
       mutationReconciled(result)
     }
     readingMutations = []

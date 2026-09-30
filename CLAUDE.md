@@ -231,6 +231,30 @@ sentence PulseAudio assembles. Both now feed this page too.
 Before building a page over something the bar already shows, read the widget
 and use the same source, the same filter, and the same labels.
 
+## Shared operation failures
+
+`SettingsWindow` schedules every queued write and its authoritative readback.
+Finite helpers run through `bin/omasettings-run`: 30 seconds per write,
+15 seconds per read, and 4 MiB per output channel. The runner preserves exit
+codes and diagnostics, drains private pipes without waiting for descendant EOF,
+and terminates foreground children before returning a timeout. Streaming
+watchers and password-over-stdin connection flows have separate lifecycles.
+
+`ui/MutationState.qml` owns pending state for rows and compact switches. Input
+is ignored until that operation's `mutationReconciled` result arrives, including
+failed writes and failed reads. Destroying a control drops its verification
+callback; an unmounted control is not reported as verified.
+
+Switches register their requested boolean and a readback callback with the
+scheduler. After state reconciliation, the common verifier records `accepted`
+and reports a mismatch even when the helper exited zero. `success` describes
+process exit; `reconciled` describes the state read; `accepted` is null without
+an available control expectation. Keep these outcomes distinct.
+
+Backends still own availability, validation, absolute writes and any rollback
+their setting supports. A timeout can interrupt a partially applied operation;
+the common layer reads what actually happened and does not invent a rollback.
+
 ## Keyboard navigation
 
 `PanelKeyCatcher` in `qs.Ui` defines the vocabulary Omarchy panels answer to,

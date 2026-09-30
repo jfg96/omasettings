@@ -6,6 +6,7 @@ import "../ui" as Ui
 // Injected by the window when the page is loaded: the state every
 // row reads, and the calls every control makes.
 Ui.SectionBody {
+  id: page
   property var app: null
 
   readonly property var bluetooth: app.bluetooth
@@ -28,11 +29,13 @@ Ui.SectionBody {
   // The adapter governs the whole page, so its switch sits beside the page
   // name and the summary replaces the file path under it.
   property Component headerControl: Component {
-    ToggleSwitch {
-      checked: bluetooth.powered === true
+    Ui.MutationToggle {
+      app: page.app
+      confirmed: bluetooth.powered === true
+      label: "Bluetooth"
       foreground: Ui.Palette.foreground
       accent: Ui.Palette.accent
-      onToggled: app.run(["bluetooth", "power", bluetooth.powered === true ? "off" : "on"])
+      onRequested: function(next) { page.app.run(["bluetooth", "power", next ? "on" : "off"]) }
     }
   }
 

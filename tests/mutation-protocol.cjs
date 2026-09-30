@@ -27,6 +27,7 @@ function harness() {
     mutationFinished: r => events.push(['finished', r]),
     mutationReconciled: r => events.push(['reconciled', r]),
     reconciliationFailed: id => events.push(['readFailure', id]),
+    mutationTimeoutMs:30000, readTimeoutMs:15000, mutationExpectations:{},
     settleTimer:{running:false, restart(){this.running=true},stop(){this.running=false}},
   };
   for (const name of ['applyProc','sliceProc','stateProc']) {
@@ -44,7 +45,7 @@ function harness() {
   }
   ctx.root=ctx;
   vm.createContext(ctx);
-  vm.runInContext(functions(source.slice(source.indexOf('  function refresh()'), source.indexOf('  function set(key,'))),ctx);
+  vm.runInContext(functions(source.slice(source.indexOf('  // A single scheduler'), source.indexOf('  function set(key,'))),ctx);
   const flush=()=>{while(deferred.length) deferred.shift()()};
   const write=(code=0,error='',status=0)=>{
     ctx.applyProc.running=false;
@@ -57,6 +58,41 @@ function harness() {
     ctx.finishRead(full,code,0,typeof part==='string'?part:JSON.stringify(part),'');flush();
   };
   return {c:ctx,events,flush,write,read};
+}
+{
+ const {c,flush,write,read,events}=harness();
+ c.expectMutation(1,true,()=>c.state.hypr.blur,'Blur');
+ c.run(['set','blur','true']);flush();
+ assert.equal(c.applyProc.command[0],'python3');
+ assert.ok(c.applyProc.command.includes('30'));
+ write();read({hypr:{blur:false},hyprChanged:[]});
+ let result=events.filter(e=>e[0]==='reconciled').at(-1)[1];
+ assert.equal(result.success,true);assert.equal(result.accepted,false);
+ assert.match(result.verificationError,/Blur did not accept/);
+ assert.equal(Object.keys(c.mutationExpectations).length,0);
+ c.expectMutation(2,true,()=>c.state.hypr.blur,'Blur');
+ c.run(['set','blur','true']);flush();write();
+ read({hypr:{blur:true},hyprChanged:[]});
+ result=events.filter(e=>e[0]==='reconciled').at(-1)[1];
+ assert.equal(result.accepted,true);
+ console.log('PASS shared toggle verification rejects silent no-op and accepts actual value');
+}
+{
+ const {c,flush,write,read,events}=harness();
+ c.expectMutation(1,true,()=>c.state.hypr.blur,'Blur');
+ c.run(['set','blur','true']);c.run(['set','shadow','true']);flush();
+ write(124,'Settings operation timed out after 30s');
+ assert.ok(c.applyProc.running);write();
+ assert.ok(c.sliceProc.running);assert.ok(c.sliceProc.command.includes('15'));
+ read({},124);
+ assert.equal(c.readRunning,false);assert.equal(c.mutationRunning,false);
+ assert.equal(c.mutationQueue.length,0);assert.equal(Object.keys(c.mutationExpectations).length,0);
+ assert.equal(events.find(e=>e[0]==='finished')[1].timedOut,true);
+ assert.ok(events.some(e=>e[0]==='readFailure' && e[1]===2));
+ c.run(['set','blur','false']);flush();assert.ok(c.applyProc.running);
+ write();read({hypr:{blur:false},hyprChanged:[]});
+ assert.equal(c.reconciledMutationId,3);
+ console.log('PASS write/read timeout releases affected controls and later requests proceed');
 }
 {
  const {c,events,flush,write,read}=harness();

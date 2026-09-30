@@ -42,31 +42,16 @@ Item {
   // doing without every page having to pass it down.
   property var nav: null
 
-  property bool mutationPending: false
-  property int requestedGeneration: -1
-  property int requestedMutationId: -1
+  readonly property bool mutationPending: operation.pending
 
-  function beginMutation() {
-    if (!enabled || mutationPending || !nav) return false
-    requestedGeneration = nav.reconciliationGeneration
-    // The requested/committed handler synchronously enqueues this operation.
-    requestedMutationId = nav.nextMutationId
-    mutationPending = true
-    return true
+  function beginMutation(expected, readback) {
+    return enabled && operation.begin(expected, readback)
   }
 
-  Connections {
-    target: settingRow.nav
-    function onReconciliationGenerationChanged() {
-      if (settingRow.mutationPending
-          && settingRow.nav.reconciliationGeneration > settingRow.requestedGeneration
-          && settingRow.nav.reconciledMutationId >= settingRow.requestedMutationId)
-        settingRow.mutationPending = false
-    }
-    function onReconciliationFailed(throughId) {
-      if (settingRow.mutationPending && throughId >= settingRow.requestedMutationId)
-        settingRow.mutationPending = false
-    }
+  Local.MutationState {
+    id: operation
+    app: settingRow.nav
+    label: settingRow.label || "Setting"
   }
 
   // A row the search does not match leaves the page rather than dimming: the

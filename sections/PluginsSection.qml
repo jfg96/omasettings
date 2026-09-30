@@ -290,12 +290,14 @@ Ui.SectionBody {
             onClicked: page.handOff(["plugin", "remove", pluginRow.modelData.id])
           }
 
-          ToggleSwitch {
+          Ui.MutationToggle {
             anchors.verticalCenter: parent.verticalCenter
-            checked: pluginRow.modelData.enabled === true
+            app: page.app
+            label: pluginRow.modelData.name || pluginRow.modelData.id
+            confirmed: pluginRow.modelData.enabled === true
             foreground: Ui.Palette.foreground
             accent: Ui.Palette.accent
-            onToggled: page.app.run(["plugin", pluginRow.modelData.enabled === true ? "disable" : "enable", pluginRow.modelData.id])
+            onRequested: function(next) { page.app.run(["plugin", next ? "enable" : "disable", pluginRow.modelData.id]) }
           }
         }
       }
