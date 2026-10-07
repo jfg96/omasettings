@@ -33,7 +33,8 @@ setting_current() {
 # as the block above — read the value, write it back to undo — but the keys
 # are named by what they configure, so they carry a prefix.
 setting_current_prefixed() {
-  local key=${1:-} name=${key#*:}
+  local key=${1:-}
+  local name=${key#*:}
   case $key in
     # A display carries which of its settings the key means, since it has
     # more than one that can be put back. The bare form is what earlier
@@ -63,7 +64,8 @@ setting_value_now() {
 
 # Writing a prefixed key means handing it back to the page that owns it.
 setting_write() {
-  local key=${1:-} value=${2:-} name=${key#*:}
+  local key=${1:-} value=${2:-}
+  local name=${key#*:}
   # The page's own command records for itself; this call is the mechanism, not
   # a change of its own.
   local OMASETTINGS_TRACKING=0
@@ -266,6 +268,10 @@ setting_reset() {
       [[ -n $k ]] || continue
       setting_reset "$k"
     done < <(devices_changed | jq -r '.[]')
+    # Animation speed and full opacity live in .extras, not .hypr or .written,
+    # so without this they survived a reset of everything. hypr_reset's reload
+    # applies the managed file re-rendered without them.
+    edit_store 'del(.extras)'
     hypr_reset --all
     return
   fi

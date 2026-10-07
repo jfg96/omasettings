@@ -88,11 +88,20 @@ wifi_band() {
 
 wifi_state() {
   local enabled device networks connection band
+  # The band comes from omarchy-network-band, as slow as everything else here
+  # put together and dependent on none of it, so it is asked alongside. The
+  # local PAR_DIR keeps this from replacing the directory of a state read that
+  # is already running producers in parallel.
+  local PAR_DIR
+  par_begin
+  par_run band wifi_band
   enabled=$(capture nmcli -t -f WIFI general status | head -n1)
   device=$(wifi_device)
   networks=$([[ $enabled == enabled ]] && wifi_networks || echo '[]')
   connection=$(wifi_connection "$device")
-  band=$(wifi_band)
+  par_wait
+  band=$(par_get band '{}')
+  par_end
 
   jq -cn --argjson available "$(command -v nmcli >/dev/null 2>&1 && echo true || echo false)" \
     --argjson enabled "$([[ $enabled == enabled ]] && echo true || echo false)" \

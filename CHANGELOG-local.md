@@ -12,6 +12,31 @@ code, and tested on its own. `lib/state.sh`, `lib/core.sh`, `bin/omasettings`
 and `manifest.json` (bar/entry-point metadata) are untouched, so the shell
 API, the state document and the search index are the ones upstream ships.
 
+## Faster state read, Reset all and prefixed keys — 2026-10-07
+
+- The state read took ~450 ms, most of it one group: each browser entry asked
+  `omarchy-default-browser` in turn, seven times in a row. Menu checks now run
+  side by side within the same shell. Power reads the profile list and the
+  active profile in one `omarchy-powerprofiles-list --active-state` instead of
+  starting the Python `powerprofilesctl` twice, and Wi-Fi asks for the band
+  alongside its other reads. Median full read 452 → 338 ms; the full state
+  document is byte-identical before and after (volatile fields removed).
+- **Reset all settings** left animation speed and full opacity in place:
+  they live in `.extras`, which `reset --all` never touched (reported in
+  passing in upstream PR #19). It now clears `.extras` before
+  `hypr_reset --all`, whose reload applies the re-rendered managed file.
+  Reproduced in a sandbox with a stub `hyprctl`: the previous code keeps
+  `.extras`, the new one clears it.
+- `setting_current_prefixed` and `setting_write` declared
+  `local key=… name=${key#*:}`. Bash expands every argument of `local` before
+  assigning any, so `name` came from the caller's `key`. Every current caller
+  happens to hold a `key` with the same value, so it worked by accident; a
+  direct call returned nothing. Split into two `local`s.
+- Backend, runner, nightlight, protocol and QML suites pass. Upstream PRs
+  #8, #14, #21 and #22 were reviewed and need nothing here (#22 is already
+  covered; the others do not apply to this machine or to this nightlight
+  path).
+
 ## Shared failure handling for toggles — 2026-09-30
 
 - All queued writes and state reconciliation reads use `bin/omasettings-run`,

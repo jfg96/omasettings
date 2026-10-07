@@ -42,8 +42,12 @@ power_state() {
 
   device=$(power_battery_device)
   reading=$(power_battery_reading "$device")
-  profiles=$(capture omarchy-powerprofiles-list | jq -R -s -c 'split("\n") | map(select(length > 0))')
-  current=$(capture powerprofilesctl get)
+  # One call for both the list and the active one: powerprofilesctl is Python,
+  # and starting it twice was most of the time this page took to read.
+  local listing
+  listing=$(capture omarchy-powerprofiles-list --active-state)
+  profiles=$(jq -R -s -c 'split("\n") | map(select(length > 0) | split("\t")[0])' <<<"$listing")
+  current=$(awk -F'\t' '$2 == 1 { print $1; exit }' <<<"$listing")
   onbattery=$(busctl get-property org.freedesktop.UPower /org/freedesktop/UPower org.freedesktop.UPower OnBattery 2>/dev/null)
   saved_ac=$(read_file "$POWERPROFILES_STATE/ac")
   saved_battery=$(read_file "$POWERPROFILES_STATE/battery")

@@ -94,12 +94,15 @@ agent_entries() { menu_group "setup.default.agent"; }
 
 # Each entry carries a bash expression saying whether it is the current choice.
 # They all run in one shell rather than one process per entry: a settings
-# window that takes a second to open is a settings window nobody opens.
+# window that takes a second to open is a settings window nobody opens. Inside
+# it they run side by side, because each one asks the same slow question —
+# seven browsers asking `omarchy-default-browser` in turn took half a second,
+# which was the whole state read waiting on one group.
 evaluate_checks() {
   local entries=$1 script
-  script=$(jq -r '.[] | select(.check != "") | "if " + .check + "; then echo \"" + .id + "\ttrue\"; else echo \"" + .id + "\tfalse\"; fi"' <<<"$entries")
+  script=$(jq -r '.[] | select(.check != "") | "{ if " + .check + "; then echo \"" + .id + "\ttrue\"; else echo \"" + .id + "\tfalse\"; fi; } &"' <<<"$entries")
   [[ -n $script ]] || { echo '{}'; return; }
-  bash -c "$script" 2>/dev/null | jq -R -s -c 'split("\n")
+  bash -c "$script"$'\nwait' 2>/dev/null | jq -R -s -c 'split("\n")
     | map(select(length > 0) | split("\t") | { key: .[0], value: (.[1] == "true") })
     | from_entries'
 }
