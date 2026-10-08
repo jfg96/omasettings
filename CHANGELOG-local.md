@@ -12,6 +12,16 @@ code, and tested on its own. `lib/state.sh`, `lib/core.sh`, `bin/omasettings`
 and `manifest.json` (bar/entry-point metadata) are untouched, so the shell
 API, the state document and the search index are the ones upstream ships.
 
+## Palette under Qt 6.12 — 2026-10-08
+
+- qt6-declarative 6.12 adds a `Color` singleton to `QtQuick`, which shadows
+  `qs.Commons`' `Color` when both are imported unqualified. The palette came
+  out undefined: text drew black on black and only control frames showed.
+  The four files that read it now import `qs.Commons as Commons` and say
+  `Commons.Color`, the same fix Omarchy made in its shell (omacom/omarchy
+  #14553, #14626). QML and protocol suites pass; checked on the running
+  shell after a restart.
+
 ## Faster state read, Reset all and prefixed keys — 2026-10-07
 
 - The state read took ~450 ms, most of it one group: each browser entry asked
