@@ -106,6 +106,7 @@ state_slice() {
                  lock: (($cfg.idle.lock // 300) | tonumber? // 300) } }' ;;
 
     # Words rather than documents, so they are quoted as words.
+    appearance) jq -cn --argjson v "$(appearance_state)" '{ appearance: $v }' ;;
     theme) jq -cn --arg v "$(state_theme)" '{ theme: $v }' ;;
     font) jq -cn --arg v "$(state_font)" '{ font: $v }' ;;
     textScale) jq -cn --arg v "$(state_textscale)" '{ textScale: (($v | tonumber?) // 1) }' ;;
@@ -178,7 +179,7 @@ state() {
   # Named slices answer on their own; with nothing named, the whole document.
   if (( $# > 0 )); then state_slices "$@"; return; fi
 
-  local cfg themes fonts theme font nightlight hypr hyprchanged searchindex monitors compose plugins pluginupdates selfupdate agents groups iconfonts datetime herdr textscale workspaces
+  local cfg themes fonts theme font nightlight appearance hypr hyprchanged searchindex monitors compose plugins pluginupdates selfupdate agents groups iconfonts datetime herdr textscale workspaces
   cfg=$(read_shell_json)
 
   # Before the block, both of them: this is the one part of a state read that
@@ -194,6 +195,7 @@ state() {
   par_run font state_font
   par_run textscale state_textscale
   par_run nightlight nightlight_enabled
+  par_run appearance appearance_state
   par_run hypr state_hypr
   par_run hyprchanged state_changed
   par_run monitors state_monitors
@@ -229,6 +231,7 @@ state() {
   font=$(par_get font)
   textscale=$(par_get textscale)
   nightlight=$(par_get nightlight false)
+  appearance=$(par_get appearance '{}')
   hypr=$(par_get hypr '{}')
   hyprchanged=$(par_get hyprchanged '[]')
   monitors=$(par_get monitors '[]')
@@ -291,6 +294,7 @@ state() {
     --arg theme "$theme" \
     --arg font "$font" \
     --argjson nightlight "${nightlight:-false}" \
+    --argjson appearance "${appearance:-{\}}" \
     --argjson hypr "${hypr:-{\}}" \
     --argjson hyprChanged "${hyprchanged:-[]}" \
     --argjson searchIndex "${searchindex:-{\}}" \
@@ -320,6 +324,7 @@ state() {
       font: $font,
       fonts: $fonts,
       nightlight: $nightlight,
+      appearance: $appearance,
       textScale: (($textScale | tonumber?) // 1),
       bar: '"$BAR_STATE_JQ"',
       idle: {

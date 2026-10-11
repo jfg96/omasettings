@@ -20,6 +20,7 @@ setting_current() {
     font) omarchy font current 2>/dev/null | head -n1 ;;
     text-scale) omarchy display text size 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1 ;;
     nightlight) nightlight_enabled ;;
+    bar-hidden) appearance_bar_hidden ;;
     bar-position) jq -r '.bar.position // "top"' <<<"$(read_shell_json)" ;;
     bar-transparent) jq -r '((.bar.transparent // false) | tostring)' <<<"$(read_shell_json)" ;;
     bar-center-anchor) jq -r '.bar.centerAnchor // ""' <<<"$(read_shell_json)" ;;
@@ -175,6 +176,7 @@ set_key_apply() {
     font) [[ -n $value ]] || die "no font given"; omarchy font set "$value" ;;
     text-scale) [[ -n $value ]] || die "no text size given"; omarchy display text size "$value" ;;
     nightlight) nightlight_set "$value" ;;
+    bar-hidden) appearance_set_bar_hidden "$value" ;;
     bar-position)
       case $value in
         top|bottom|left|right) omarchy bar position "$value" ;;

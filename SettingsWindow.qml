@@ -91,6 +91,7 @@ Item {
 
   readonly property var hypr: state.hypr !== undefined ? state.hypr : ({})
   readonly property var barState: state.bar !== undefined ? state.bar : ({})
+  readonly property var appearance: state.appearance !== undefined ? state.appearance : ({})
   readonly property var idleState: state.idle !== undefined ? state.idle : ({})
   readonly property var monitors: state.monitors !== undefined ? state.monitors : []
   readonly property var composeEntries: state.compose !== undefined ? state.compose : []
@@ -924,6 +925,10 @@ Item {
   // which is why the changed list comes along with all of them.
   function slicesForKey(key) {
     var name = String(key || "")
+    // Omarchy's Appearance switches: flags and toggle files, read by the
+    // appearance slice rather than out of shell.json or Hyprland.
+    var appearanceKeys = ["bar-hidden"]
+    if (appearanceKeys.indexOf(name) !== -1) return ["appearance", "hyprChanged"]
     if (name.indexOf("bar-") === 0) return ["bar", "hyprChanged"]
     if (name.indexOf("idle-") === 0) return ["idle", "hyprChanged"]
     if (name.indexOf("monitor") === 0) return ["monitors", "hyprChanged"]

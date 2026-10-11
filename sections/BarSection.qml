@@ -49,6 +49,15 @@ Ui.SectionBody {
   Ui.SettingGroup {
     title: "Placement"
 
+    Ui.SwitchRow {
+      label: "Hidden"
+      description: "Takes the bar off the screen until you show it again."
+      checked: app.appearance.barHidden === true
+      onRequested: function(next) { app.set("bar-hidden", next ? "true" : "false") }
+      changed: app.isChanged("bar-hidden")
+      onResetRequested: app.resetSetting("bar-hidden")
+    }
+
     Ui.PickerRow {
       label: "Position"
       value: app.barState.position !== undefined ? String(app.barState.position) : "top"
