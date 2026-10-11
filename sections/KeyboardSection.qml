@@ -32,7 +32,7 @@ Ui.SectionBody {
 
     Ui.TextRow {
       label: "Options"
-      placeholder: "compose:caps,grp:alts_toggle"
+      placeholder: "omarchy:shift_caps_compose,grp:alts_toggle"
       value: String(app.hyprValue("kb-options", ""))
       onCommitted: function(next) { app.setHypr("kb-options", next) }
       changed: app.isChanged("kb-options")
