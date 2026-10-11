@@ -3,13 +3,16 @@ import qs.Commons
 import qs.Ui
 import "." as Local
 
-// A duration stored in seconds but edited in whole minutes.
+// A duration stored in seconds but edited in whole minutes. With allowNever,
+// the slider starts at zero and zero reads as "Never": a timeout that is off.
 SettingRow {
   id: minutesRow
   property int seconds: 0
+  property bool allowNever: false
+  readonly property int floor: allowNever ? 0 : 1
   signal committed(int mins)
 
-  readonly property int currentMinutes: Math.max(1, Math.round(seconds / 60))
+  readonly property int currentMinutes: Math.max(floor, Math.round(seconds / 60))
   readonly property int shownMinutes: minutesSlider.dragging ? Math.round(minutesSlider.liveValue) : effective
 
   // Keep the desired value until this mutation is explicitly reconciled.
@@ -19,7 +22,7 @@ SettingRow {
   navKeys: [{ key: "\u2190\u2192", label: "Adjust" }]
 
   function commit(next) {
-    var wanted = Math.max(1, Math.min(60, Math.round(next)))
+    var wanted = Math.max(minutesRow.floor, Math.min(60, Math.round(next)))
     if (wanted === minutesRow.effective) return
     if (!beginMutation()) return
     minutesRow.pending = wanted
@@ -40,7 +43,7 @@ SettingRow {
       anchors.verticalCenter: parent.verticalCenter
       integer: true
       step: 1
-      minimum: 1
+      minimum: minutesRow.floor
       maximum: 60
       enabled: minutesRow.enabled && !minutesRow.mutationPending
       value: minutesRow.effective
@@ -53,7 +56,8 @@ SettingRow {
       anchors.verticalCenter: parent.verticalCenter
       width: Style.space(76)
       horizontalAlignment: Text.AlignRight
-      text: minutesRow.shownMinutes + (minutesRow.shownMinutes === 1 ? " min" : " mins")
+      text: minutesRow.shownMinutes === 0 ? "Never"
+        : minutesRow.shownMinutes + (minutesRow.shownMinutes === 1 ? " min" : " mins")
       color: Local.Palette.muted
       font.family: Local.Palette.fontFamily
       font.pixelSize: Style.font.caption

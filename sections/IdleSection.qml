@@ -13,6 +13,8 @@ Ui.SectionBody {
 
     Ui.MinutesRow {
       label: "Screensaver after"
+      description: "Slide to the start to never start it."
+      allowNever: true
       seconds: app.idleState.screensaver !== undefined ? Number(app.idleState.screensaver) : 150
       onCommitted: function(mins) { app.set("idle-screensaver", mins * 60) }
       changed: app.isChanged("idle-screensaver")
@@ -21,6 +23,8 @@ Ui.SectionBody {
 
     Ui.MinutesRow {
       label: "Lock after"
+      description: "Slide to the start to never lock on idle."
+      allowNever: true
       seconds: app.idleState.lock !== undefined ? Number(app.idleState.lock) : 300
       onCommitted: function(mins) { app.set("idle-lock", mins * 60) }
       changed: app.isChanged("idle-lock")
