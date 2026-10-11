@@ -23,6 +23,7 @@ setting_current() {
     bar-hidden) appearance_bar_hidden ;;
     window-corners) appearance_corners ;;
     effects-off) appearance_effects_off ;;
+    workspace-layout) appearance_workspace_layout ;;
     bar-clock-format) appearance_clock_format ;;
     bar-battery-percentage) appearance_battery_percentage ;;
     bar-position) jq -r '.bar.position // "top"' <<<"$(read_shell_json)" ;;
@@ -183,6 +184,7 @@ set_key_apply() {
     bar-hidden) appearance_set_bar_hidden "$value" ;;
     window-corners) appearance_set_corners "$value" ;;
     effects-off) appearance_set_effects_off "$value" ;;
+    workspace-layout) appearance_set_workspace_layout "$value" ;;
     bar-clock-format) appearance_set_clock_format "$value" ;;
     bar-battery-percentage) appearance_set_battery_percentage "$value" ;;
     bar-position)

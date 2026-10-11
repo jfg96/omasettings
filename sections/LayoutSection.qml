@@ -31,6 +31,22 @@ Ui.SectionBody {
       changed: app.isChanged("layout")
       onResetRequested: app.resetSetting("layout")
     }
+
+    Ui.ChoiceRow {
+      label: "New workspaces"
+      description: app.isChanged("layout")
+        ? "The layout set above wins over Tiling and Scrolling here until you reset it."
+        : "For every workspace not given a layout of its own with Super + L. Floating floats each window."
+      value: String(app.appearance.workspaceLayout || "dwindle")
+      options: [
+        { value: "dwindle", label: "Tiling" },
+        { value: "scrolling", label: "Scrolling" },
+        { value: "floating", label: "Floating" }
+      ]
+      onPicked: function(next) { app.set("workspace-layout", next) }
+      changed: app.isChanged("workspace-layout")
+      onResetRequested: app.resetSetting("workspace-layout")
+    }
   }
 
   Ui.SettingGroup {

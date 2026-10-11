@@ -73,6 +73,30 @@ appearance_set_effects_off() {
   [[ $(appearance_effects_off) == "$value" ]] || die "animations did not accept '$value'"
 }
 
+# ------------------------------------------------------ Workspace Layout
+#
+# The layout of every workspace without one of its own: dwindle, scrolling, or
+# floating, which floats the windows rather than being a layout. A tiled
+# choice is written as general.layout before our managed file loads, so a
+# Layout set on the Layout page wins over it; the page says so.
+
+appearance_workspace_layout() {
+  local mode
+  mode=$(capture omarchy-hyprland-workspace-layout-default | head -n1)
+  printf '%s\n' "${mode:-dwindle}"
+}
+
+appearance_set_workspace_layout() {
+  local value=$1
+  case $value in
+    dwindle | scrolling | floating) ;;
+    *) die "expected dwindle, scrolling or floating" ;;
+  esac
+  appearance_run "the workspace layout" omarchy-hyprland-workspace-layout-default "$value"
+  [[ $(appearance_workspace_layout) == "$value" ]] ||
+    die "the workspace layout did not accept '$value'"
+}
+
 # ------------------------------------------------ Menu Bar > Indicators
 #
 # The clock and the battery keep these in their own bar entry, so they are
@@ -143,6 +167,7 @@ appearance_state() {
     --argjson clockFormats "$(appearance_clock_formats)" \
     --arg corners "$(appearance_corners)" \
     --argjson effectsOff "$(appearance_effects_off)" \
+    --arg workspaceLayout "$(appearance_workspace_layout)" \
     '{ barHidden: $barHidden, clockFormats: $clockFormats, corners: $corners,
-       effectsOff: $effectsOff }'
+       effectsOff: $effectsOff, workspaceLayout: $workspaceLayout }'
 }

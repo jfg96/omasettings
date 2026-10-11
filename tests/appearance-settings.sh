@@ -143,3 +143,19 @@ if (appearance_set_effects_off true) 2>"$sandbox/error"; then exit 1; fi
 grep -q 'mock omarchy-toggle-animations failure' "$sandbox/error"
 broken ""
 echo 'PASS reduced effects map onto the animations switch the right way round'
+
+# The default workspace layout: what is saved, else what Hyprland says.
+stub omarchy-hyprland-workspace-layout-default <<'STUB'
+file=$sandbox/workspace-default
+if (( $# == 0 )); then cat "$file" 2>/dev/null || echo dwindle; exit 0; fi
+echo "$1" >"$file"
+STUB
+[[ $(appearance_workspace_layout) == dwindle ]]
+appearance_set_workspace_layout floating
+[[ $(appearance_workspace_layout) == floating ]]
+if (appearance_set_workspace_layout master) 2>/dev/null; then exit 1; fi
+broken noop
+if (appearance_set_workspace_layout scrolling) 2>"$sandbox/error"; then exit 1; fi
+grep -q 'did not accept' "$sandbox/error"
+broken ""
+echo 'PASS workspace layout default round trip and refusals'
