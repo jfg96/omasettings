@@ -237,8 +237,23 @@ Ui.SectionBody {
     }
   }
 
+  // Anything set on these pages loads after Omarchy's switch, so it wins.
+  readonly property bool effectsOverridden: ["animations", "blur", "shadow", "opaque-windows",
+    "active-opacity", "inactive-opacity"].some(function(key) { return app.isChanged(key) })
+
   Ui.SettingGroup {
     title: "Animations"
+
+    Ui.SwitchRow {
+      label: "Reduce effects"
+      description: effectsOverridden
+        ? "Animations, blur, shadows or opacity set in this window win over this until you reset them."
+        : "Turns off animations, blur and shadows and makes windows opaque. For machines without a GPU."
+      checked: app.appearance.effectsOff === true
+      onRequested: function(next) { app.set("effects-off", next ? "true" : "false") }
+      changed: app.isChanged("effects-off")
+      onResetRequested: app.resetSetting("effects-off")
+    }
 
     Ui.SwitchRow {
       label: "Animations"

@@ -22,6 +22,7 @@ setting_current() {
     nightlight) nightlight_enabled ;;
     bar-hidden) appearance_bar_hidden ;;
     window-corners) appearance_corners ;;
+    effects-off) appearance_effects_off ;;
     bar-clock-format) appearance_clock_format ;;
     bar-battery-percentage) appearance_battery_percentage ;;
     bar-position) jq -r '.bar.position // "top"' <<<"$(read_shell_json)" ;;
@@ -181,6 +182,7 @@ set_key_apply() {
     nightlight) nightlight_set "$value" ;;
     bar-hidden) appearance_set_bar_hidden "$value" ;;
     window-corners) appearance_set_corners "$value" ;;
+    effects-off) appearance_set_effects_off "$value" ;;
     bar-clock-format) appearance_set_clock_format "$value" ;;
     bar-battery-percentage) appearance_set_battery_percentage "$value" ;;
     bar-position)

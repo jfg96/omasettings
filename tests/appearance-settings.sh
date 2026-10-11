@@ -125,3 +125,21 @@ if (appearance_set_corners sharp) 2>"$sandbox/error"; then exit 1; fi
 grep -q 'did not accept' "$sandbox/error"
 broken ""
 echo 'PASS window corners round trip and refusals'
+
+# Reduced effects: Omarchy's switch speaks of animations, so on and off swap.
+stub omarchy-toggle-animations <<'STUB'
+mkdir -p "$OMARCHY_TOGGLES/hypr"
+case $1 in
+  off) touch "$OMARCHY_TOGGLES/hypr/no-animations.lua" ;;
+  on) rm -f "$OMARCHY_TOGGLES/hypr/no-animations.lua" ;;
+esac
+STUB
+appearance_set_effects_off true
+[[ $(appearance_effects_off) == true ]]
+appearance_set_effects_off false
+[[ $(appearance_effects_off) == false ]]
+broken fail
+if (appearance_set_effects_off true) 2>"$sandbox/error"; then exit 1; fi
+grep -q 'mock omarchy-toggle-animations failure' "$sandbox/error"
+broken ""
+echo 'PASS reduced effects map onto the animations switch the right way round'

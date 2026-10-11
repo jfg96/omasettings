@@ -53,6 +53,26 @@ appearance_set_corners() {
   [[ $(appearance_corners) == "$value" ]] || die "window corners did not accept '$value'"
 }
 
+# ----------------------------------------------------------- Animations
+#
+# Omarchy's switch for machines that draw on the CPU: a Hyprland toggle that
+# turns off animations, blur and shadows and makes every window opaque. The
+# toggle records the effects being off, so on here means the file is there.
+
+appearance_effects_off() {
+  [[ -f $OMARCHY_TOGGLES/hypr/no-animations.lua ]] && echo true || echo false
+}
+
+appearance_set_effects_off() {
+  local value=$1
+  case $value in
+    true) appearance_run "animations" omarchy-toggle-animations off ;;
+    false) appearance_run "animations" omarchy-toggle-animations on ;;
+    *) die "'$value' is not true or false" ;;
+  esac
+  [[ $(appearance_effects_off) == "$value" ]] || die "animations did not accept '$value'"
+}
+
 # ------------------------------------------------ Menu Bar > Indicators
 #
 # The clock and the battery keep these in their own bar entry, so they are
@@ -122,5 +142,7 @@ appearance_state() {
   jq -cn --argjson barHidden "$(appearance_bar_hidden)" \
     --argjson clockFormats "$(appearance_clock_formats)" \
     --arg corners "$(appearance_corners)" \
-    '{ barHidden: $barHidden, clockFormats: $clockFormats, corners: $corners }'
+    --argjson effectsOff "$(appearance_effects_off)" \
+    '{ barHidden: $barHidden, clockFormats: $clockFormats, corners: $corners,
+       effectsOff: $effectsOff }'
 }
