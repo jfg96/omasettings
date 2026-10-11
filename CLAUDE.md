@@ -148,7 +148,8 @@ setting:
 | --- | --- |
 | Windows, Layout, Effects, Groups, Keyboard, Mouse, Workspaces | `~/.config/hypr/omasettings.lua`, loaded last |
 | Appearance | Omarchy's own config, via `omarchy-theme-set`, `omarchy font set`, `omarchy display text size` |
-| Bar, Idle & Lock, Plugins | `~/.config/omarchy/shell.json` |
+| Bar, Idle & Lock, Plugins | `~/.config/omarchy/shell.json` — the clock and battery through `omarchy bar set` |
+| Bar hidden, Corners, Reduce effects, New workspaces | Omarchy's own flags and toggle files, via its Appearance commands (`lib/appearance.sh`) |
 | Keybindings | a marked block in `~/.config/hypr/bindings.lua` |
 | Compose Keys | `~/.XCompose` |
 | Herdr, Tmux, Neovim | their own configs, edited in place |
@@ -331,6 +332,26 @@ Three things this will not forgive:
   moved text size since, the reset puts back the older number, not the theme's.
   A key written before any of this existed has no original at all, and stays
   marked until reset once.
+
+## Omarchy's Appearance switches
+
+Omarchy keeps a menu of its own for how the desktop looks (Trigger >
+Appearance), and every switch on it is a flag or a toggle file written by one
+of its commands. `lib/appearance.sh` reads each one the way that command does
+and writes it only through it — `omarchy-toggle-bar`,
+`omarchy-hyprland-corners`, `omarchy-toggle-animations`,
+`omarchy-hyprland-workspace-layout-default` — so the menu and this window
+cannot disagree. The clock format and battery percentage are widget settings
+instead, set with `omarchy bar set`, which hands them to the running bar: the
+entry lands in `shell.json` a moment after the command answers, so the write
+waits for it before calling it done. The clock presets are the menu's own
+rows, parsed, never a copy.
+
+**Our managed file loads after Omarchy's toggles.** So a rounding, an
+animation or blur switch, an opacity or a Layout set in this window wins over
+the matching Appearance switch, which then does nothing. The row for the
+switch says so while one of those is set, rather than leaving it to look
+broken.
 
 ## The two that are not keywords
 
@@ -654,6 +675,12 @@ first.
 
 ## QML traps that cost real time here
 
+- **Every component in `ui/` has to be listed in `ui/qmldir`.** Omarchy's
+  Quickshell loads plugin QML through `qs://` URLs so it can patch their
+  QtQuick imports, and a directory reached that way exposes only what its
+  qmldir declares — the implicit "every file in the folder" import is gone.
+  A row left out reads as `SettingRow is not a type` in the journal and a
+  blank page on screen. A new file in `ui/` gets its line in the same commit.
 - **Don't import `QtQuick.Controls` alongside `qs.Ui`.** Both export `Button`
   and `TextField`; the ambiguity fails the whole file, and the shell reports it
   as the useless "File name case mismatch".

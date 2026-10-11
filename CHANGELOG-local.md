@@ -1,16 +1,48 @@
 # Changelog — build local
 
-Fixes on top of upstream `io.github.twiking.omasettings` in this personal
+Changes on top of upstream `io.github.twiking.omasettings` in this personal
 build. Not a maintained fork, not a release line: it is upstream 1.3.0 with
-the problems below fixed, for this machine.
+the problems below fixed, and kept level with what Omarchy itself now
+offers, for this machine.
 
 Base: upstream `v1.3.0` (`72cfe16`). Tagged `v1.3.0-local`.
 
-Everything here is a fix or a port of a fix. No feature work, no upstream
+Fixes, ports of fixes, and settings Omarchy added after 1.3.0. No upstream
 PR merged wholesale: each one was read, ported by hand against the current
-code, and tested on its own. `lib/state.sh`, `lib/core.sh`, `bin/omasettings`
-and `manifest.json` (bar/entry-point metadata) are untouched, so the shell
-API, the state document and the search index are the ones upstream ships.
+code, and tested on its own. `lib/core.sh` and `manifest.json`
+(bar/entry-point metadata) are untouched. The state document only gains
+keys (`appearance`, `bar.clock`, `bar.battery`); none are renamed or
+removed.
+
+## Level with Omarchy 4.0.0.r6897 — 2026-10-11
+
+Audited against Omarchy from upstream 1.3.0's release (2026-09-06) to
+`4df5459`. Every `omarchy-*` command, `omarchy` subcommand, menu entry and
+all 76 Hyprland options the window uses still exist and answer as before.
+
+- **Every page opened blank.** Omarchy's Quickshell now loads plugin QML
+  through `qs://` URLs to patch QtQuick imports, and such a directory only
+  exposes what its qmldir lists. `ui/qmldir` listed only the Palette, so
+  `SettingRow` and everything built on it failed to load. It now lists every
+  row. The QML test had been adding the entries to its own copy; it now
+  loads the qmldir as shipped. Checked in the restarted shell: no QML
+  errors on any page, before and after.
+- **Keyboard options example.** Omarchy made Shift + Caps Lock the compose
+  key (`omarchy:shift_caps_compose`) and left Caps Lock alone; the
+  placeholder still showed the old `compose:caps`.
+- **Idle timeouts can be off.** Omarchy treats 0 as disabled since #10860;
+  the sliders now reach 0 and read it as Never.
+- **Bar:** Hidden (`omarchy-toggle-bar`), Clock format (the menu's presets,
+  via `omarchy bar set`, horizontal bar only) and Battery percentage.
+- **Windows:** Corners — Theme, Sharp or Rounded (#14990) — and Reduce
+  effects, Omarchy's no-animations mode (#13550).
+- **Layout:** New workspaces — Tiling, Scrolling or Floating (#14482).
+- The managed file loads after Omarchy's toggles, so rounding, effects,
+  opacity or a Layout set here win over those switches; each switch's row
+  says so while that is the case.
+- `tests/appearance-settings.sh` covers every new setter against sandboxed
+  stub commands: round trips, failures, silent no-ops, bad values. All
+  suites pass; QML lint has no new warnings.
 
 ## Palette under Qt 6.12 — 2026-10-08
 
