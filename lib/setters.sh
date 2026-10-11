@@ -22,6 +22,7 @@ setting_current() {
     nightlight) nightlight_enabled ;;
     bar-hidden) appearance_bar_hidden ;;
     bar-clock-format) appearance_clock_format ;;
+    bar-battery-percentage) appearance_battery_percentage ;;
     bar-position) jq -r '.bar.position // "top"' <<<"$(read_shell_json)" ;;
     bar-transparent) jq -r '((.bar.transparent // false) | tostring)' <<<"$(read_shell_json)" ;;
     bar-center-anchor) jq -r '.bar.centerAnchor // ""' <<<"$(read_shell_json)" ;;
@@ -179,6 +180,7 @@ set_key_apply() {
     nightlight) nightlight_set "$value" ;;
     bar-hidden) appearance_set_bar_hidden "$value" ;;
     bar-clock-format) appearance_set_clock_format "$value" ;;
+    bar-battery-percentage) appearance_set_battery_percentage "$value" ;;
     bar-position)
       case $value in
         top|bottom|left|right) omarchy bar position "$value" ;;

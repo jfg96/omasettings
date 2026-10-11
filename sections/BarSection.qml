@@ -104,9 +104,11 @@ Ui.SectionBody {
   readonly property bool clockFormatShown: clockState.present === true
     && ["top", "bottom"].indexOf(String(app.barState.position || "top")) !== -1
 
+  readonly property var batteryState: app.barState.battery !== undefined ? app.barState.battery : ({})
+
   Ui.SettingGroup {
     title: "Indicators"
-    visible: !searchEmpty && page.clockFormatShown
+    visible: !searchEmpty && (page.clockFormatShown || batteryState.present === true)
 
     Ui.PickerRow {
       label: "Clock format"
@@ -117,6 +119,16 @@ Ui.SectionBody {
       onPicked: function(next) { app.set("bar-clock-format", next) }
       changed: app.isChanged("bar-clock-format")
       onResetRequested: app.resetSetting("bar-clock-format")
+    }
+
+    Ui.SwitchRow {
+      label: "Battery percentage"
+      description: "Shows the charge as a number beside the battery icon."
+      visible: batteryState.present === true
+      checked: batteryState.showPercentage === true
+      onRequested: function(next) { app.set("bar-battery-percentage", next ? "true" : "false") }
+      changed: app.isChanged("bar-battery-percentage")
+      onResetRequested: app.resetSetting("bar-battery-percentage")
     }
   }
 

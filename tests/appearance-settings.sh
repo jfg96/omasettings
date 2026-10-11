@@ -59,7 +59,8 @@ echo '{"bar":{"layout":{"center":[{"id":"omarchy.clock"}]}}}' >"$SHELL_JSON"
 stub omarchy <<'STUB'
 [[ "$1 $2" == "bar set" ]] || exit 9
 ( sleep 0.3
-  jq --arg id "$3" --arg k "$4" --arg v "$5" \
+  if [[ ${6:-} == --json ]]; then json=--argjson; else json=--arg; fi
+  jq --arg id "$3" --arg k "$4" $json v "$5" \
     '.bar.layout[][] |= if .id == $id then .[$k] = $v else . end' "$SHELL_JSON" >"$SHELL_JSON.new"
   mv "$SHELL_JSON.new" "$SHELL_JSON" ) &
 echo ok
@@ -77,6 +78,16 @@ echo '{"bar":{"layout":{"center":[]}}}' >"$SHELL_JSON"
 if (appearance_set_clock_format "HH:mm") 2>"$sandbox/error"; then exit 1; fi
 grep -q 'not in the bar' "$sandbox/error"
 echo 'PASS clock format refuses a silent no-op and a bar without a clock'
+
+echo '{"bar":{"layout":{"right":[{"id":"omarchy.power"}]}}}' >"$SHELL_JSON"
+[[ $(appearance_battery_percentage) == false ]]
+appearance_set_battery_percentage true
+[[ $(appearance_battery_percentage) == true ]]
+jq -e '.bar.layout.right[0].showPercentage == true' "$SHELL_JSON" >/dev/null
+appearance_set_battery_percentage false
+[[ $(appearance_battery_percentage) == false ]]
+if (appearance_set_battery_percentage yes) 2>/dev/null; then exit 1; fi
+echo 'PASS battery percentage is written as a boolean and read back'
 
 MENU_DEFAULTS=$sandbox/menu.jsonc
 MENU_USER=$sandbox/none.jsonc

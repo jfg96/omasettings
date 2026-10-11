@@ -82,6 +82,20 @@ appearance_set_clock_format() {
   bar_entry_wait omarchy.clock format "$value" || die "the clock did not accept format '$value'"
 }
 
+# Off until the entry says otherwise, as the widget reads it.
+appearance_battery_percentage() {
+  [[ $(bar_entry_setting omarchy.power showPercentage) == true ]] && echo true || echo false
+}
+
+appearance_set_battery_percentage() {
+  local value=$1
+  [[ $value == true || $value == false ]] || die "'$value' is not true or false"
+  [[ -n $(bar_widget_section omarchy.power) ]] || die "the battery is not in the bar"
+  appearance_run "the battery percentage" omarchy bar set omarchy.power showPercentage "$value" --json
+  bar_entry_wait omarchy.power showPercentage "$value" ||
+    die "the battery did not accept percentage '$value'"
+}
+
 appearance_state() {
   jq -cn --argjson barHidden "$(appearance_bar_hidden)" \
     --argjson clockFormats "$(appearance_clock_formats)" \

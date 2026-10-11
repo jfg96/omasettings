@@ -57,6 +57,10 @@ BAR_STATE_JQ='{
     present: ([$cfg.bar.layout[]?[]? | select(.id == "omarchy.clock")] | length > 0),
     format: (first($cfg.bar.layout[]?[]? | select(.id == "omarchy.clock") | .format | select(type == "string")) // "dddd HH:mm")
   },
+  battery: {
+    present: ([$cfg.bar.layout[]?[]? | select(.id == "omarchy.power")] | length > 0),
+    showPercentage: (first($cfg.bar.layout[]?[]? | select(.id == "omarchy.power") | .showPercentage) == true)
+  },
   # Just the ids, in bar order: the window pairs them with the plugin
   # list for names, and per-widget settings stay in shell.json where
   # only the widget itself cares about them.
