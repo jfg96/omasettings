@@ -9,10 +9,8 @@ with tempfile.TemporaryDirectory(prefix='omasettings-qml-') as tmp:
     # Native widgets and palette, with the same qs import layout as the shell.
     for name in ['Commons', 'Ui']:
         (root / name).symlink_to('/usr/share/omarchy/shell/' + name)
+    # The qmldir is copied as it ships: the shell finds a row by it alone.
     shutil.copytree(repo / 'ui', root / 'Rows')
-    with (root / 'Rows/qmldir').open('a') as directory:
-        for file in (root / 'Rows').glob('*.qml'):
-            if file.stem != 'Palette': directory.write(f'{file.stem} {file.name}\n')
     source = (repo / 'SettingsWindow.qml').read_text()
     protocol = source[source.index('  // A single scheduler'):source.index('  // ---------------- sections')]
     (root / 'helper').write_text('''#!/bin/bash

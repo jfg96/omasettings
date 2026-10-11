@@ -1,1 +1,23 @@
 singleton Palette Palette.qml
+ActionRow ActionRow.qml
+BindingRow BindingRow.qml
+BrandingRow BrandingRow.qml
+ChoiceRow ChoiceRow.qml
+DeviceRow DeviceRow.qml
+FactorRow FactorRow.qml
+MinutesRow MinutesRow.qml
+MutationState MutationState.qml
+MutationToggle MutationToggle.qml
+NavCursor NavCursor.qml
+NumberRow NumberRow.qml
+PercentRow PercentRow.qml
+PickableRow PickableRow.qml
+PickerRow PickerRow.qml
+ReadingRow ReadingRow.qml
+SectionBody SectionBody.qml
+SettingGroup SettingGroup.qml
+SettingRow SettingRow.qml
+SwitchRow SwitchRow.qml
+TextRow TextRow.qml
+WidgetRow WidgetRow.qml
+WifiRow WifiRow.qml
