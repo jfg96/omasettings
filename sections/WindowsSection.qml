@@ -77,6 +77,22 @@ Ui.SectionBody {
       onResetRequested: app.resetSetting("border-part-of-window")
     }
 
+    Ui.ChoiceRow {
+      label: "Corners"
+      description: app.isChanged("rounding") || app.isChanged("rounding-power")
+        ? "The rounding set below wins over this until you reset it."
+        : "Theme leaves corners to each theme; the others apply to all of them."
+      value: String(app.appearance.corners || "theme")
+      options: [
+        { value: "theme", label: "Theme" },
+        { value: "sharp", label: "Sharp" },
+        { value: "rounded", label: "Rounded" }
+      ]
+      onPicked: function(next) { app.set("window-corners", next) }
+      changed: app.isChanged("window-corners")
+      onResetRequested: app.resetSetting("window-corners")
+    }
+
     Ui.NumberRow {
       label: "Corner rounding"
       suffix: "px"

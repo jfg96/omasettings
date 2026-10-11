@@ -21,6 +21,7 @@ setting_current() {
     text-scale) omarchy display text size 2>/dev/null | grep -oE '[0-9]+(\.[0-9]+)?' | head -n1 ;;
     nightlight) nightlight_enabled ;;
     bar-hidden) appearance_bar_hidden ;;
+    window-corners) appearance_corners ;;
     bar-clock-format) appearance_clock_format ;;
     bar-battery-percentage) appearance_battery_percentage ;;
     bar-position) jq -r '.bar.position // "top"' <<<"$(read_shell_json)" ;;
@@ -179,6 +180,7 @@ set_key_apply() {
     text-scale) [[ -n $value ]] || die "no text size given"; omarchy display text size "$value" ;;
     nightlight) nightlight_set "$value" ;;
     bar-hidden) appearance_set_bar_hidden "$value" ;;
+    window-corners) appearance_set_corners "$value" ;;
     bar-clock-format) appearance_set_clock_format "$value" ;;
     bar-battery-percentage) appearance_set_battery_percentage "$value" ;;
     bar-position)

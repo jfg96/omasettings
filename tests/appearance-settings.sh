@@ -101,3 +101,27 @@ cat >"$MENU_DEFAULTS" <<'MENU'
 MENU
 jq -e '. == [{"value":"HH:mm","label":"14:30"}]' <<<"$(appearance_clock_formats)" >/dev/null
 echo 'PASS clock presets come from the menu, stacked ones left out'
+
+# Corners: the command prints the mode it finds from the toggle files.
+stub omarchy-hyprland-corners <<'STUB'
+dir=$OMARCHY_TOGGLES/hypr
+if (( $# == 0 )); then
+  if [[ -f $dir/corners-sharp.lua ]]; then echo sharp
+  elif [[ -f $dir/corners-rounded.lua ]]; then echo rounded
+  else echo theme; fi
+  exit 0
+fi
+mkdir -p "$dir"; rm -f "$dir"/corners-*.lua
+[[ $1 == theme ]] || touch "$dir/corners-$1.lua"
+STUB
+[[ $(appearance_corners) == theme ]]
+appearance_set_corners rounded
+[[ $(appearance_corners) == rounded ]]
+appearance_set_corners theme
+[[ $(appearance_corners) == theme ]]
+if (appearance_set_corners square) 2>/dev/null; then exit 1; fi
+broken noop
+if (appearance_set_corners sharp) 2>"$sandbox/error"; then exit 1; fi
+grep -q 'did not accept' "$sandbox/error"
+broken ""
+echo 'PASS window corners round trip and refusals'

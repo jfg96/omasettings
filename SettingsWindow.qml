@@ -927,7 +927,10 @@ Item {
     var name = String(key || "")
     // Omarchy's Appearance switches: flags and toggle files, read by the
     // appearance slice rather than out of shell.json or Hyprland.
-    var appearanceKeys = ["bar-hidden"]
+    // The ones that reload Hyprland move what the Hyprland rows show as well.
+    var appearanceKeys = ["bar-hidden", "window-corners"]
+    var appearanceHyprKeys = ["window-corners"]
+    if (appearanceHyprKeys.indexOf(name) !== -1) return ["appearance", "hypr", "hyprChanged"]
     if (appearanceKeys.indexOf(name) !== -1) return ["appearance", "hyprChanged"]
     if (name.indexOf("bar-") === 0) return ["bar", "hyprChanged"]
     if (name.indexOf("idle-") === 0) return ["idle", "hyprChanged"]

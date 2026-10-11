@@ -31,6 +31,28 @@ appearance_set_bar_hidden() {
   [[ $(appearance_bar_hidden) == "$value" ]] || die "the bar did not accept hidden '$value'"
 }
 
+# ------------------------------------------------------- Window Corners
+#
+# theme, sharp or rounded: a toggle file loaded after every theme. Our managed
+# file loads after the toggles, so a rounding set on the Windows page still
+# wins over this; the page says so.
+
+appearance_corners() {
+  local mode
+  mode=$(capture omarchy-hyprland-corners | head -n1)
+  printf '%s\n' "${mode:-theme}"
+}
+
+appearance_set_corners() {
+  local value=$1
+  case $value in
+    theme | sharp | rounded) ;;
+    *) die "expected theme, sharp or rounded" ;;
+  esac
+  appearance_run "window corners" omarchy-hyprland-corners "$value"
+  [[ $(appearance_corners) == "$value" ]] || die "window corners did not accept '$value'"
+}
+
 # ------------------------------------------------ Menu Bar > Indicators
 #
 # The clock and the battery keep these in their own bar entry, so they are
@@ -99,5 +121,6 @@ appearance_set_battery_percentage() {
 appearance_state() {
   jq -cn --argjson barHidden "$(appearance_bar_hidden)" \
     --argjson clockFormats "$(appearance_clock_formats)" \
-    '{ barHidden: $barHidden, clockFormats: $clockFormats }'
+    --arg corners "$(appearance_corners)" \
+    '{ barHidden: $barHidden, clockFormats: $clockFormats, corners: $corners }'
 }
