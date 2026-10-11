@@ -52,6 +52,11 @@ BAR_STATE_JQ='{
   position: (($cfg.bar.position // "top") | tostring),
   transparent: (($cfg.bar.transparent // false) == true),
   centerAnchor: (($cfg.bar.centerAnchor // "") | tostring),
+  # Indicator settings shown on the page, read from the widget entries.
+  clock: {
+    present: ([$cfg.bar.layout[]?[]? | select(.id == "omarchy.clock")] | length > 0),
+    format: (first($cfg.bar.layout[]?[]? | select(.id == "omarchy.clock") | .format | select(type == "string")) // "dddd HH:mm")
+  },
   # Just the ids, in bar order: the window pairs them with the plugin
   # list for names, and per-widget settings stay in shell.json where
   # only the widget itself cares about them.

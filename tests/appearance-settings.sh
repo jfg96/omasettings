@@ -6,6 +6,9 @@ sandbox=$(mktemp -d)
 trap 'rm -rf "$sandbox"' EXIT
 HOME=$sandbox
 source lib/core.sh
+source lib/shell_config.sh
+# Its heredoc read ends at EOF, which is a non-zero status under set -e.
+source lib/menu.sh || true
 source lib/appearance.sh
 die() { echo "$*" >&2; exit 1; }
 mkdir -p "$OMARCHY_TOGGLES"
@@ -47,3 +50,43 @@ grep -q 'did not accept' "$sandbox/error"
 if (appearance_set_bar_hidden maybe) 2>/dev/null; then exit 1; fi
 broken ""
 echo 'PASS bar hidden failure, silent no-op and bad value are reported'
+
+# The clock: the bar entry is what the running shell writes, a moment later.
+SHELL_JSON=$sandbox/shell.json
+export SHELL_JSON
+read_file() { cat "$1"; }
+echo '{"bar":{"layout":{"center":[{"id":"omarchy.clock"}]}}}' >"$SHELL_JSON"
+stub omarchy <<'STUB'
+[[ "$1 $2" == "bar set" ]] || exit 9
+( sleep 0.3
+  jq --arg id "$3" --arg k "$4" --arg v "$5" \
+    '.bar.layout[][] |= if .id == $id then .[$k] = $v else . end' "$SHELL_JSON" >"$SHELL_JSON.new"
+  mv "$SHELL_JSON.new" "$SHELL_JSON" ) &
+echo ok
+STUB
+[[ $(appearance_clock_format) == "dddd HH:mm" ]]
+appearance_set_clock_format "HH:mm"
+[[ $(appearance_clock_format) == "HH:mm" ]]
+echo 'PASS clock format waits for the bar to write it'
+
+broken noop
+if (appearance_set_clock_format "h:mm AP") 2>"$sandbox/error"; then exit 1; fi
+grep -q 'did not accept' "$sandbox/error"
+broken ""
+echo '{"bar":{"layout":{"center":[]}}}' >"$SHELL_JSON"
+if (appearance_set_clock_format "HH:mm") 2>"$sandbox/error"; then exit 1; fi
+grep -q 'not in the bar' "$sandbox/error"
+echo 'PASS clock format refuses a silent no-op and a bar without a clock'
+
+MENU_DEFAULTS=$sandbox/menu.jsonc
+MENU_USER=$sandbox/none.jsonc
+MENU_ENTRIES_CACHE=""
+cat >"$MENU_DEFAULTS" <<'MENU'
+{
+  // presets
+  "trigger.appearance.top-bar.indicators.clock.time-24h": { "label": "14:30", "action": "omarchy-bar set omarchy.clock format \"HH:mm\"" },
+  "trigger.appearance.top-bar.indicators.clock.stacked-time": { "label": "14 30", "action": "omarchy-bar set omarchy.clock verticalFormat $'HH\\nmm'" },
+}
+MENU
+jq -e '. == [{"value":"HH:mm","label":"14:30"}]' <<<"$(appearance_clock_formats)" >/dev/null
+echo 'PASS clock presets come from the menu, stacked ones left out'

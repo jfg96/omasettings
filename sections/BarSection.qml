@@ -88,6 +88,38 @@ Ui.SectionBody {
     }
   }
 
+  // The menu's presets, with the format in force added when it is none of
+  // them, so the picker always has the current one to show.
+  readonly property var clockState: app.barState.clock !== undefined ? app.barState.clock : ({})
+  readonly property var clockOptions: {
+    var presets = app.appearance.clockFormats !== undefined ? app.appearance.clockFormats : []
+    var current = String(clockState.format || "")
+    for (var i = 0; i < presets.length; i++)
+      if (String(presets[i].value) === current) return presets
+    return current === "" ? presets : [{ value: current, label: current }].concat(presets)
+  }
+
+  // A bar on its side stacks the clock from a format of its own, which this
+  // row does not set, so the row is only offered where its format shows.
+  readonly property bool clockFormatShown: clockState.present === true
+    && ["top", "bottom"].indexOf(String(app.barState.position || "top")) !== -1
+
+  Ui.SettingGroup {
+    title: "Indicators"
+    visible: !searchEmpty && page.clockFormatShown
+
+    Ui.PickerRow {
+      label: "Clock format"
+      description: "How the clock in the bar reads the time and date."
+      visible: page.clockFormatShown
+      value: String(clockState.format || "")
+      options: page.clockOptions
+      onPicked: function(next) { app.set("bar-clock-format", next) }
+      changed: app.isChanged("bar-clock-format")
+      onResetRequested: app.resetSetting("bar-clock-format")
+    }
+  }
+
   // Every bar widget appears once on this page: under the section it sits in,
   // or — if it is disabled — in the group at the foot. A list of switches
   // beside the three section lists would have named each widget twice and left
